@@ -1,0 +1,21 @@
+<?php
+
+namespace App\Http\Resources\Api\V1;
+
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+
+class EquipmentResource extends JsonResource
+{
+    public function toArray(Request $request): array
+    {
+        return [
+            'id' => $this->id,
+            'name' => $this->name,
+            'description' => $this->description,
+            'price_per_hour' => $this->price_per_hour ?? null,
+            'quantity' => $this->quantity ?? $this->studio_quantity ?? null,
+            'status' => $this->status ?? null,
+        ];
+    }
+}
