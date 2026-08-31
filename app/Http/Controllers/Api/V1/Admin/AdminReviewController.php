@@ -42,6 +42,7 @@ class AdminReviewController extends Controller
     public function storeDimension(Request $request): JsonResponse
     {
         $request->validate(['name' => 'required|string|max:255', 'is_active' => 'boolean']);
+
         return ApiResponse::success($this->reviewService->createDimension($request->all()), null, 201);
     }
 }
