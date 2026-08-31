@@ -12,10 +12,13 @@ class AuditLogResource extends JsonResource
         return [
             'id' => $this->id,
             'user_id' => $this->user_id,
+            'user' => $this->whenLoaded('user', fn () => new UserResource($this->user)),
             'action' => $this->action,
-            'entity_type' => $this->entity_type,
-            'entity_id' => $this->entity_id,
-            'metadata_json' => $this->metadata_json,
+            'auditable_type' => $this->auditable_type,
+            'auditable_id' => $this->auditable_id,
+            'old_values' => $this->old_values,
+            'new_values' => $this->new_values,
+            'ip_address' => $this->ip_address,
             'created_at' => $this->created_at,
         ];
     }
