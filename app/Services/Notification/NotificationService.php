@@ -24,18 +24,28 @@ class NotificationService
     ) {
     }
 
-    public function create(array $data, ?array $userIds = null): Model
+    public function paginate(int $perPage = 15): LengthAwarePaginator
     {
-        return DB::transaction(function () use ($data, $userIds) {
-            $notification = $this->notificationRepository->create(array_merge($data, [
-                'status' => $data['status'] ?? NotificationStatus::Draft->value,
-            ]));
+        return $this->notificationRepository->paginate($perPage);
+    }
+
+    public function create(array $data, ?array $userIds = null, ?int $createdBy = null): Model
+    {
+        return DB::transaction(function () use ($data, $userIds, $createdBy) {
+            $notification = $this->notificationRepository->create([
+                'title' => $data['title'],
+                'body' => $data['body'],
+                'type' => $data['type'],
+                'deep_link' => $data['deep_link'] ?? null,
+                'status' => NotificationStatus::Draft->value,
+                'created_by' => $createdBy,
+            ]);
 
             if ($userIds) {
                 $this->createRecipients($notification->id, $userIds);
             }
 
-            return $notification->fresh('recipients');
+            return $this->sendNow($notification->id);
         });
     }
 

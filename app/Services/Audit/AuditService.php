@@ -3,6 +3,7 @@
 namespace App\Services\Audit;
 
 use App\Repositories\Contracts\AuditLogRepositoryInterface;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Model;
 
 class AuditService
@@ -10,6 +11,11 @@ class AuditService
     public function __construct(
         protected AuditLogRepositoryInterface $auditLogRepository,
     ) {
+    }
+
+    public function paginate(int $perPage = 15): LengthAwarePaginator
+    {
+        return $this->auditLogRepository->paginate($perPage);
     }
 
     /**

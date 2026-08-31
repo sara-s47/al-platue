@@ -23,4 +23,13 @@ class ContentBanner extends Model
             'is_active' => 'boolean',
         ];
     }
+
+    public function getLinkUrlAttribute(): ?string
+    {
+        if ($this->link_type && str_starts_with($this->link_type, 'http')) {
+            return $this->link_type;
+        }
+
+        return null;
+    }
 }

@@ -19,4 +19,9 @@ class ContentPage extends Model
             'is_active' => 'boolean',
         ];
     }
+
+    public function getSlugAttribute(): string
+    {
+        return $this->key;
+    }
 }
