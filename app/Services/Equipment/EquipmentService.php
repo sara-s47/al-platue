@@ -31,7 +31,7 @@ class EquipmentService
     public function create(array $data, array $imagePaths = []): Model
     {
         return DB::transaction(function () use ($data, $imagePaths) {
-            $equipment = $this->equipmentRepository->create($data);
+            $equipment = $this->equipmentRepository->create($this->normalizePayload($data));
             $this->syncImages($equipment->id, $imagePaths);
 
             return $equipment->fresh();
@@ -41,7 +41,7 @@ class EquipmentService
     public function update(int $id, array $data, ?array $imagePaths = null): Model
     {
         return DB::transaction(function () use ($id, $data, $imagePaths) {
-            $equipment = $this->equipmentRepository->update($id, $data);
+            $equipment = $this->equipmentRepository->update($id, $this->normalizePayload($data));
 
             if ($imagePaths !== null) {
                 $this->syncImages($equipment->id, $imagePaths);
@@ -124,5 +124,18 @@ class EquipmentService
                 'updated_at' => $now,
             ]);
         }
+    }
+
+    /**
+     * Map API fields to DB columns (price_per_hour → price).
+     */
+    protected function normalizePayload(array $data): array
+    {
+        if (array_key_exists('price_per_hour', $data)) {
+            $data['price'] = $data['price_per_hour'];
+            unset($data['price_per_hour']);
+        }
+
+        return $data;
     }
 }

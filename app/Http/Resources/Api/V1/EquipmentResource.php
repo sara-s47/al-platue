@@ -13,7 +13,7 @@ class EquipmentResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'description' => $this->description,
-            'price_per_hour' => $this->price_per_hour ?? null,
+            'price_per_hour' => $this->price ?? null,
             'quantity' => $this->quantity ?? $this->studio_quantity ?? null,
             'status' => $this->status ?? null,
         ];
