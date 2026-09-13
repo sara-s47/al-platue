@@ -71,7 +71,7 @@ Content-Type must be `multipart/form-data` (not JSON).
 | `description` | string | no | |
 | `quantity` | integer | create: yes | min 1 |
 | `price_per_hour` | number | create: yes | maps to DB `price` |
-| `status` | string | no | |
+| `status` | string | no | `active`, `inactive`, `maintenance` (alias: `available` → `active`). Default: `active` |
 | `image` | file | no | single image (`jpeg`, `jpg`, `png`, `webp`, max 5MB) |
 | `images[]` | file[] | no | up to 5 images |
 | `clear_images` | boolean | update only | `1` / `true` removes all images without uploading new ones |

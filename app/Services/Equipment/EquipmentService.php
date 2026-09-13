@@ -151,13 +151,22 @@ class EquipmentService
     }
 
     /**
-     * Map API fields to DB columns (price_per_hour → price).
+     * Map API fields to DB columns / enum values.
      */
     protected function normalizePayload(array $data): array
     {
         if (array_key_exists('price_per_hour', $data)) {
             $data['price'] = $data['price_per_hour'];
             unset($data['price_per_hour']);
+        }
+
+        if (array_key_exists('status', $data)) {
+            $status = strtolower(trim((string) ($data['status'] ?? '')));
+
+            // Frontend alias: available → active
+            if ($status === 'available' || $status === '') {
+                $data['status'] = EquipmentStatus::Active->value;
+            }
         }
 
         unset($data['image'], $data['images'], $data['clear_images']);
