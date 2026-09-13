@@ -3,14 +3,19 @@
 namespace App\Services\Notification;
 
 use App\Enums\BookingStatus;
+use App\Enums\NotificationAudience;
+use App\Enums\NotificationCategory;
 use App\Enums\NotificationRecipientStatus;
 use App\Enums\NotificationStatus;
+use App\Enums\UserStatus;
 use App\Exceptions\BusinessException;
+use App\Models\User;
 use App\Repositories\Contracts\BookingRepositoryInterface;
 use App\Repositories\Contracts\NotificationRepositoryInterface;
 use App\Services\Promotion\SegmentationService;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
@@ -29,21 +34,56 @@ class NotificationService
         return $this->notificationRepository->paginate($perPage);
     }
 
+    /**
+     * @return array{categories: list<array{value: string, label: string}>, audiences: list<array{value: string, label: string}>}
+     */
+    public function options(): array
+    {
+        return [
+            'categories' => NotificationCategory::options(),
+            'audiences' => NotificationAudience::options(),
+        ];
+    }
+
+    /**
+     * @param  array<int, int>|null  $userIds
+     */
+    public function previewAudience(string $audience, ?array $userIds = null): int
+    {
+        return count($this->resolveAudienceUserIds($audience, $userIds));
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @param  array<int, int>|null  $userIds
+     */
     public function create(array $data, ?array $userIds = null, ?int $createdBy = null): Model
     {
         return DB::transaction(function () use ($data, $userIds, $createdBy) {
+            $type = $data['category'] ?? $data['type'] ?? NotificationCategory::General->value;
+            $audience = $data['audience'] ?? null;
+            $explicitIds = $userIds ?? $data['user_ids'] ?? null;
+
+            if ($audience !== null) {
+                $resolvedIds = $this->resolveAudienceUserIds((string) $audience, is_array($explicitIds) ? $explicitIds : null);
+            } else {
+                $resolvedIds = array_values(array_unique(array_map('intval', (array) $explicitIds)));
+            }
+
+            if ($resolvedIds === []) {
+                throw new BusinessException('Notification has no recipients.', 'notification_no_recipients');
+            }
+
             $notification = $this->notificationRepository->create([
                 'title' => $data['title'],
                 'body' => $data['body'],
-                'type' => $data['type'],
+                'type' => $type,
                 'deep_link' => $data['deep_link'] ?? null,
                 'status' => NotificationStatus::Draft->value,
-                'created_by' => $createdBy,
+                'created_by' => $createdBy ?? ($data['created_by'] ?? null),
             ]);
 
-            if ($userIds) {
-                $this->createRecipients($notification->id, $userIds);
-            }
+            $this->createRecipients($notification->id, $resolvedIds);
 
             return $this->sendNow($notification->id);
         });
@@ -125,18 +165,14 @@ class NotificationService
             throw new BusinessException('Notification creator is required.', 'created_by_required');
         }
 
-        return DB::transaction(function () use ($segmentId, $data, $createdBy) {
-            $userIds = $this->segmentationService->getUsersForSegment($segmentId)
-                ->map(fn ($id) => (int) $id)
-                ->all();
+        $userIds = $this->segmentationService->getUsersForSegment($segmentId)
+            ->map(fn ($id) => (int) $id)
+            ->all();
 
-            $notification = $this->create(array_merge($data, [
-                'type' => $data['type'] ?? 'segment',
-                'created_by' => $createdBy ?? $data['created_by'],
-            ]), $userIds);
-
-            return $this->sendNow($notification->id);
-        });
+        return $this->create(array_merge($data, [
+            'type' => $data['type'] ?? 'segment',
+            'created_by' => $createdBy ?? $data['created_by'],
+        ]), $userIds, $createdBy ?? ($data['created_by'] ?? null));
     }
 
     public function markAsRead(int $notificationId, int $userId): void
@@ -164,22 +200,21 @@ class NotificationService
     {
         $booking = $this->bookingRepository->findOrFail($bookingId);
 
-        if (! in_array($booking->status, [
-            BookingStatus::Confirmed->value,
-            BookingStatus::Pending->value,
-        ], true)) {
+        $status = $booking->status instanceof BookingStatus
+            ? $booking->status
+            : BookingStatus::tryFrom((string) $booking->status);
+
+        if (! in_array($status, [BookingStatus::Confirmed, BookingStatus::Pending], true)) {
             throw new BusinessException('Booking is not eligible for confirmation notification.', 'booking_not_confirmable');
         }
 
-        $notification = $this->create([
+        return $this->create([
             'title' => 'Booking Confirmed',
             'body' => "Your booking {$booking->booking_number} has been confirmed.",
             'type' => 'booking_confirmation',
             'deep_link' => "bookings/{$booking->id}",
             'created_by' => (int) $booking->user_id,
-        ], [(int) $booking->user_id]);
-
-        return $this->sendNow($notification->id);
+        ], [(int) $booking->user_id], (int) $booking->user_id);
     }
 
     public function sendBookingReminder(int $bookingId): Model
@@ -190,15 +225,13 @@ class NotificationService
             throw new BusinessException('Only confirmed bookings can receive reminders.', 'booking_not_remindable');
         }
 
-        $notification = $this->create([
+        return $this->create([
             'title' => 'Upcoming Booking Reminder',
             'body' => "Reminder: your booking {$booking->booking_number} starts at {$booking->start_at}.",
             'type' => 'booking_reminder',
             'deep_link' => "bookings/{$booking->id}",
             'created_by' => (int) $booking->user_id,
-        ], [(int) $booking->user_id]);
-
-        return $this->sendNow($notification->id);
+        ], [(int) $booking->user_id], (int) $booking->user_id);
     }
 
     public function processDueScheduled(): int
@@ -212,6 +245,66 @@ class NotificationService
         }
 
         return $processed;
+    }
+
+    /**
+     * @param  array<int, int>|null  $userIds
+     * @return list<int>
+     */
+    public function resolveAudienceUserIds(string $audience, ?array $userIds = null): array
+    {
+        $audienceEnum = NotificationAudience::tryFrom($audience);
+
+        if (! $audienceEnum) {
+            throw new BusinessException('Invalid notification audience.', 'invalid_audience');
+        }
+
+        return match ($audienceEnum) {
+            NotificationAudience::All => $this->activeCustomerQuery()->pluck('users.id')->map(fn ($id) => (int) $id)->all(),
+            NotificationAudience::WithBookings => $this->activeCustomerQuery()
+                ->whereHas('bookings')
+                ->pluck('users.id')
+                ->map(fn ($id) => (int) $id)
+                ->all(),
+            NotificationAudience::WithoutBookings => $this->activeCustomerQuery()
+                ->whereDoesntHave('bookings')
+                ->pluck('users.id')
+                ->map(fn ($id) => (int) $id)
+                ->all(),
+            NotificationAudience::Custom => $this->resolveCustomCustomerIds($userIds ?? []),
+        };
+    }
+
+    /**
+     * @param  array<int, int>  $userIds
+     * @return list<int>
+     */
+    protected function resolveCustomCustomerIds(array $userIds): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $userIds)));
+
+        if ($ids === []) {
+            throw new BusinessException('user_ids are required for custom audience.', 'user_ids_required');
+        }
+
+        $validIds = $this->activeCustomerQuery()
+            ->whereIn('users.id', $ids)
+            ->pluck('users.id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        if ($validIds === []) {
+            throw new BusinessException('No valid active customers found in user_ids.', 'notification_no_recipients');
+        }
+
+        return $validIds;
+    }
+
+    protected function activeCustomerQuery(): Builder
+    {
+        return User::query()
+            ->role('customer')
+            ->where('users.status', UserStatus::Active->value);
     }
 
     /**

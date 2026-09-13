@@ -242,6 +242,8 @@ Route::prefix('v1')->group(function () {
 
         Route::middleware('permission:notifications.manage')->prefix('notifications')->group(function () {
             Route::get('/', [AdminNotificationController::class, 'index']);
+            Route::get('options', [AdminNotificationController::class, 'options']);
+            Route::post('preview-audience', [AdminNotificationController::class, 'previewAudience']);
             Route::post('/', [AdminNotificationController::class, 'store']);
         });
 

@@ -3,32 +3,19 @@
 namespace App\Http\Requests\Api\V1\Admin;
 
 use App\Enums\NotificationAudience;
-use App\Enums\NotificationCategory;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class SendNotificationRequest extends FormRequest
+class PreviewNotificationAudienceRequest extends FormRequest
 {
     public function authorize(): bool
     {
         return true;
     }
 
-    protected function prepareForValidation(): void
-    {
-        if (! $this->filled('category') && $this->filled('type')) {
-            $this->merge(['category' => $this->input('type')]);
-        }
-    }
-
     public function rules(): array
     {
         return [
-            'title' => 'required|string|max:255',
-            'body' => 'required|string',
-            'category' => ['required', 'string', Rule::enum(NotificationCategory::class)],
-            'type' => 'nullable|string',
-            'deep_link' => 'nullable|string|max:500',
             'audience' => ['required', 'string', Rule::enum(NotificationAudience::class)],
             'user_ids' => [
                 'nullable',
