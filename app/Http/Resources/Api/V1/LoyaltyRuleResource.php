@@ -11,6 +11,7 @@ class LoyaltyRuleResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'name' => $this->name,
             'rule_type' => $this->rule_type,
             'points' => $this->points,
             'value' => $this->value,

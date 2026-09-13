@@ -17,6 +17,7 @@ class StorePackageRequest extends FormRequest
             'studio_id' => 'required|integer|exists:studios,id',
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
+            'duration_minutes' => 'required|integer|min:1',
             'price' => 'required|numeric|min:0',
             'is_active' => 'boolean',
             'valid_from' => 'nullable|date',

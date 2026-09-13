@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Admin\StoreHospitalityCategoryRequest;
 use App\Http\Requests\Api\V1\Admin\StoreHospitalityItemRequest;
+use App\Http\Requests\Api\V1\Admin\UpdateHospitalityItemRequest;
 use App\Http\Resources\Api\V1\HospitalityItemResource;
 use App\Http\Responses\ApiResponse;
 use App\Services\Hospitality\HospitalityService;
@@ -36,9 +37,9 @@ class AdminHospitalityController extends Controller
         return ApiResponse::success(new HospitalityItemResource($this->hospitalityService->createItem($request->validated())), null, 201);
     }
 
-    public function updateItem(Request $request, int $id): JsonResponse
+    public function updateItem(UpdateHospitalityItemRequest $request, int $id): JsonResponse
     {
-        return ApiResponse::success(new HospitalityItemResource($this->hospitalityService->updateItem($id, $request->all())));
+        return ApiResponse::success(new HospitalityItemResource($this->hospitalityService->updateItem($id, $request->validated())));
     }
 
     public function destroyItem(int $id): JsonResponse

@@ -14,6 +14,7 @@ class StoreCancellationPolicyRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'name' => 'required|string|max:255',
             'hours_before' => 'required|integer|min:0',
             'refund_percentage' => 'required|numeric|min:0|max:100',
             'cancellation_fee' => 'nullable|numeric|min:0',

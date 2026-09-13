@@ -13,9 +13,12 @@ class PricingRuleResource extends JsonResource
             'id' => $this->id,
             'studio_id' => $this->studio_id,
             'rule_type' => $this->rule_type,
-            'hourly_rate' => $this->hourly_rate,
-            'start_date' => $this->start_date,
-            'end_date' => $this->end_date,
+            'day_of_week' => $this->day_of_week,
+            'start_time' => $this->start_time,
+            'end_time' => $this->end_time,
+            'specific_date' => $this->specific_date,
+            'price_per_hour' => $this->price_per_hour,
+            'priority' => $this->priority,
             'is_active' => $this->is_active,
         ];
     }

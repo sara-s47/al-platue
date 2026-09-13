@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Admin\StorePricingRuleRequest;
+use App\Http\Requests\Api\V1\Admin\UpdatePricingRuleRequest;
 use App\Http\Resources\Api\V1\PricingRuleResource;
 use App\Http\Responses\ApiResponse;
 use App\Services\Pricing\PricingRuleService;
@@ -30,7 +31,7 @@ class AdminPricingRuleController extends Controller
         return ApiResponse::success(new PricingRuleResource($this->pricingRuleService->findOrFail($id)));
     }
 
-    public function update(StorePricingRuleRequest $request, int $id): JsonResponse
+    public function update(UpdatePricingRuleRequest $request, int $id): JsonResponse
     {
         return ApiResponse::success(new PricingRuleResource($this->pricingRuleService->update($id, $request->validated())));
     }

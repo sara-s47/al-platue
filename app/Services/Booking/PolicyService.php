@@ -42,16 +42,29 @@ class PolicyService
 
     public function createReschedule(array $data): Model
     {
-        return $this->reschedulePolicyRepository->create($data);
+        return $this->reschedulePolicyRepository->create($this->normalizeReschedulePayload($data));
     }
 
     public function updateReschedule(int $id, array $data): Model
     {
-        return $this->reschedulePolicyRepository->update($id, $data);
+        return $this->reschedulePolicyRepository->update($id, $this->normalizeReschedulePayload($data));
     }
 
     public function deleteReschedule(int $id): bool
     {
         return $this->reschedulePolicyRepository->delete($id);
+    }
+
+    /**
+     * Map API alias reschedule_fee → fee.
+     */
+    protected function normalizeReschedulePayload(array $data): array
+    {
+        if (array_key_exists('reschedule_fee', $data)) {
+            $data['fee'] = $data['reschedule_fee'];
+            unset($data['reschedule_fee']);
+        }
+
+        return $data;
     }
 }

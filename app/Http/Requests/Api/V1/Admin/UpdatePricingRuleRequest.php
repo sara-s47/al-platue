@@ -6,7 +6,7 @@ use App\Enums\PricingRuleType;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class StorePricingRuleRequest extends FormRequest
+class UpdatePricingRuleRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -16,13 +16,13 @@ class StorePricingRuleRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'studio_id' => 'required|integer|exists:studios,id',
-            'rule_type' => ['required', 'string', Rule::enum(PricingRuleType::class)],
-            'price_per_hour' => 'required_without:hourly_rate|numeric|min:0',
-            'hourly_rate' => 'required_without:price_per_hour|numeric|min:0',
+            'studio_id' => 'sometimes|integer|exists:studios,id',
+            'rule_type' => ['sometimes', 'string', Rule::enum(PricingRuleType::class)],
+            'price_per_hour' => 'sometimes|numeric|min:0',
+            'hourly_rate' => 'sometimes|numeric|min:0',
             'day_of_week' => 'nullable|integer|between:0,6',
             'start_time' => 'nullable|date_format:H:i',
-            'end_time' => 'nullable|date_format:H:i|after:start_time',
+            'end_time' => 'nullable|date_format:H:i',
             'specific_date' => 'nullable|date',
             'start_date' => 'nullable|date',
             'priority' => 'nullable|integer|min:0',

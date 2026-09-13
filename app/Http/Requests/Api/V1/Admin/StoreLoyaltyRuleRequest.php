@@ -14,6 +14,7 @@ class StoreLoyaltyRuleRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'name' => 'required|string|max:255',
             'rule_type' => 'required|string',
             'points' => 'required|numeric|min:0',
             'value' => 'nullable|numeric|min:0',
