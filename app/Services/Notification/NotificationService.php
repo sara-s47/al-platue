@@ -55,8 +55,8 @@ class NotificationService
             $notification = $this->notificationRepository->findOrFail($notificationId);
 
             if (in_array($notification->status, [
-                NotificationStatus::Sent->value,
-                NotificationStatus::Cancelled->value,
+                NotificationStatus::Sent,
+                NotificationStatus::Cancelled,
             ], true)) {
                 throw new BusinessException('Notification cannot be sent in its current state.', 'notification_not_sendable');
             }
@@ -186,7 +186,7 @@ class NotificationService
     {
         $booking = $this->bookingRepository->findOrFail($bookingId);
 
-        if ($booking->status !== BookingStatus::Confirmed->value) {
+        if ($booking->status !== BookingStatus::Confirmed) {
             throw new BusinessException('Only confirmed bookings can receive reminders.', 'booking_not_remindable');
         }
 

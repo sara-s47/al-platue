@@ -59,7 +59,11 @@ class LoyaltyService
 
     public function earnFromBooking(Model $booking): ?Model
     {
-        if ($booking->status !== BookingStatus::Completed->value) {
+        $status = $booking->status instanceof BookingStatus
+            ? $booking->status
+            : BookingStatus::tryFrom((string) $booking->status);
+
+        if ($status !== BookingStatus::Completed) {
             throw new BusinessException('Points can only be earned from completed bookings.', 'booking_not_completed');
         }
 
@@ -73,13 +77,18 @@ class LoyaltyService
                 return null;
             }
 
-            $rule = $this->getActiveRule(LoyaltyRuleType::Booking);
+            $rule = $this->getActiveRule(LoyaltyRuleType::Booking)
+                ?? $this->getActiveRule(LoyaltyRuleType::Spending);
 
             if (! $rule) {
                 return null;
             }
 
             $points = $this->calculateEarnPoints($rule, (float) $booking->total_amount);
+
+            if ($points <= 0) {
+                return null;
+            }
 
             return $this->recordTransaction(
                 (int) $booking->user_id,

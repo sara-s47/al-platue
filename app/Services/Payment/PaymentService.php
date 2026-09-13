@@ -124,7 +124,7 @@ class PaymentService
                 'remaining_amount' => $remainingAmount,
             ]);
 
-            if ($booking->status === BookingStatus::Pending->value && $remainingAmount <= 0) {
+            if ($booking->status === BookingStatus::Pending && $remainingAmount <= 0) {
                 $this->bookingService->confirmBooking($booking->id);
             }
 

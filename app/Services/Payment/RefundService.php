@@ -31,8 +31,8 @@ class RefundService
             $payment = $this->paymentRepository->findOrFail($paymentId);
 
             if (! in_array($payment->status, [
-                PaymentStatus::Paid->value,
-                PaymentStatus::PartiallyRefunded->value,
+                PaymentStatus::Paid,
+                PaymentStatus::PartiallyRefunded,
             ], true)) {
                 throw new BusinessException('Payment is not eligible for refund.', 'payment_not_refundable');
             }

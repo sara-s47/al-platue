@@ -172,7 +172,7 @@ class BookingService
         return DB::transaction(function () use ($bookingId) {
             $booking = $this->bookingRepository->findOrFail($bookingId);
 
-            if ($booking->status !== BookingStatus::Pending->value) {
+            if ($booking->status !== BookingStatus::Pending) {
                 throw new BusinessException('Only pending bookings can be confirmed.', 'invalid_booking_status');
             }
 
@@ -295,16 +295,22 @@ class BookingService
 
     public function updateStatus(int $bookingId, BookingStatus $status): Model
     {
-        $booking = $this->bookingRepository->findOrFail($bookingId);
-        $this->assertValidStatusTransition(BookingStatus::from($booking->status), $status);
+        return DB::transaction(function () use ($bookingId, $status) {
+            $booking = $this->bookingRepository->findOrFail($bookingId);
+            $current = $booking->status instanceof BookingStatus
+                ? $booking->status
+                : BookingStatus::from((string) $booking->status);
 
-        $updated = $this->bookingRepository->update($bookingId, ['status' => $status->value]);
+            $this->assertValidStatusTransition($current, $status);
 
-        if ($status === BookingStatus::Completed) {
-            $this->loyaltyService->earnFromBooking($updated);
-        }
+            $updated = $this->bookingRepository->update($bookingId, ['status' => $status->value]);
 
-        return $updated;
+            if ($status === BookingStatus::Completed) {
+                $this->loyaltyService->earnFromBooking($updated);
+            }
+
+            return $updated;
+        });
     }
 
     public function addInternalNote(int $bookingId, int $adminUserId, string $note): void

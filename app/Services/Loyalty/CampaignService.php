@@ -53,8 +53,8 @@ class CampaignService
             $campaign = $this->campaignRepository->findOrFail($campaignId);
 
             if (! in_array($campaign->status, [
-                CampaignStatus::Draft->value,
-                CampaignStatus::Scheduled->value,
+                CampaignStatus::Draft,
+                CampaignStatus::Scheduled,
             ], true)) {
                 throw new BusinessException('Campaign cannot be executed in its current state.', 'campaign_not_executable');
             }

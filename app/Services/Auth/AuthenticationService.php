@@ -6,6 +6,7 @@ use App\Enums\UserStatus;
 use App\Exceptions\BusinessException;
 use App\Models\User;
 use App\Repositories\Contracts\UserRepositoryInterface;
+use App\Services\Loyalty\LoyaltyService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -15,6 +16,7 @@ class AuthenticationService
     public function __construct(
         protected UserRepositoryInterface $userRepository,
         protected OtpServiceInterface $otpService,
+        protected LoyaltyService $loyaltyService,
     ) {
     }
 
@@ -59,9 +61,16 @@ class AuthenticationService
             throw new BusinessException('Account is blocked.', 'account_blocked', 403);
         }
 
+        $wasInactive = $user->status === UserStatus::Inactive
+            || $user->status === UserStatus::Inactive->value;
+
         $user = $this->userRepository->update($user->id, [
             'status' => UserStatus::Active,
         ]);
+
+        if ($wasInactive) {
+            $this->loyaltyService->awardWelcomePoints($user->id);
+        }
 
         return $this->issueTokenResponse($user);
     }

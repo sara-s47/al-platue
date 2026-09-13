@@ -38,7 +38,7 @@ class InventoryService
 
             $record = $this->equipmentRepository->findOrFail($equipmentId);
 
-            if ($record->status !== EquipmentStatus::Active->value) {
+            if ($record->status !== EquipmentStatus::Active) {
                 throw new BusinessException("Equipment {$record->name} is not available.", 'equipment_unavailable');
             }
 
