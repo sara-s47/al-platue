@@ -149,6 +149,7 @@ Route::prefix('v1')->group(function () {
             Route::post('/', [AdminEquipmentController::class, 'store']);
             Route::get('{id}', [AdminEquipmentController::class, 'show']);
             Route::put('{id}', [AdminEquipmentController::class, 'update']);
+            Route::post('{id}', [AdminEquipmentController::class, 'update']);
             Route::delete('{id}', [AdminEquipmentController::class, 'destroy']);
             Route::post('{equipmentId}/assign', [AdminEquipmentController::class, 'assign']);
             Route::delete('{equipmentId}/studios/{studioId}', [AdminEquipmentController::class, 'unassign']);

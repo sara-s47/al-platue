@@ -4,11 +4,13 @@ namespace App\Services\Equipment;
 
 use App\Enums\EquipmentStatus;
 use App\Exceptions\BusinessException;
+use App\Models\Equipment;
 use App\Repositories\Contracts\EquipmentRepositoryInterface;
 use App\Repositories\Contracts\StudioRepositoryInterface;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class EquipmentService
 {
@@ -34,7 +36,7 @@ class EquipmentService
             $equipment = $this->equipmentRepository->create($this->normalizePayload($data));
             $this->syncImages($equipment->id, $imagePaths);
 
-            return $equipment->fresh();
+            return $equipment->fresh(['images']);
         });
     }
 
@@ -47,7 +49,7 @@ class EquipmentService
                 $this->syncImages($equipment->id, $imagePaths);
             }
 
-            return $equipment->fresh();
+            return $equipment->fresh(['images']);
         });
     }
 
@@ -60,7 +62,7 @@ class EquipmentService
                 throw new BusinessException('Cannot delete equipment assigned to studios.', 'equipment_in_use');
             }
 
-            DB::table('equipment_images')->where('equipment_id', $id)->delete();
+            $this->syncImages($id, []);
 
             return $this->equipmentRepository->delete($id);
         });
@@ -72,7 +74,11 @@ class EquipmentService
             $this->studioRepository->findOrFail($studioId);
             $equipment = $this->equipmentRepository->findOrFail($equipmentId);
 
-            if ($equipment->status !== EquipmentStatus::Active->value) {
+            $status = $equipment->status instanceof EquipmentStatus
+                ? $equipment->status
+                : EquipmentStatus::tryFrom((string) $equipment->status);
+
+            if ($status !== EquipmentStatus::Active) {
                 throw new BusinessException('Only active equipment can be assigned to studios.', 'equipment_not_active');
             }
 
@@ -99,19 +105,37 @@ class EquipmentService
             ->delete();
     }
 
+    /**
+     * @return list<Equipment>
+     */
     public function getForStudio(int $studioId): array
     {
-        return DB::table('equipment')
-            ->join('studio_equipment', 'studio_equipment.equipment_id', '=', 'equipment.id')
-            ->where('studio_equipment.studio_id', $studioId)
-            ->where('equipment.status', EquipmentStatus::Active->value)
-            ->select('equipment.*', 'studio_equipment.quantity as studio_quantity')
+        return Equipment::query()
+            ->with('images')
+            ->where('status', EquipmentStatus::Active)
+            ->whereHas('studios', fn ($q) => $q->where('studios.id', $studioId))
+            ->with(['studios' => fn ($q) => $q->where('studios.id', $studioId)])
             ->get()
+            ->each(function (Equipment $equipment) {
+                $equipment->setAttribute(
+                    'studio_quantity',
+                    $equipment->studios->first()?->pivot?->quantity,
+                );
+            })
             ->all();
     }
 
     protected function syncImages(int $equipmentId, array $imagePaths): void
     {
+        $existing = DB::table('equipment_images')
+            ->where('equipment_id', $equipmentId)
+            ->pluck('path')
+            ->all();
+
+        foreach ($existing as $path) {
+            Storage::disk('public')->delete($path);
+        }
+
         DB::table('equipment_images')->where('equipment_id', $equipmentId)->delete();
 
         $now = now();
@@ -135,6 +159,8 @@ class EquipmentService
             $data['price'] = $data['price_per_hour'];
             unset($data['price_per_hour']);
         }
+
+        unset($data['image'], $data['images'], $data['clear_images']);
 
         return $data;
     }
