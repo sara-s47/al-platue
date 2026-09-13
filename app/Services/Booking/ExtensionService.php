@@ -33,9 +33,9 @@ class ExtensionService
         }
 
         if (! in_array($booking->status, [
-            BookingStatus::Confirmed->value,
-            BookingStatus::InProgress->value,
-            BookingStatus::Extended->value,
+            BookingStatus::Confirmed,
+            BookingStatus::InProgress,
+            BookingStatus::Extended,
         ], true)) {
             throw new BusinessException('Booking cannot be extended in its current state.', 'booking_not_extendable');
         }
@@ -46,6 +46,7 @@ class ExtensionService
             $newEndAt,
             (int) $booking->guest_count,
             $bookingId,
+            false,
         );
 
         $equipment = $this->getBookingEquipment($bookingId);

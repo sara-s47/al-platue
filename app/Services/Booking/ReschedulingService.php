@@ -48,8 +48,8 @@ class ReschedulingService
         }
 
         if (! in_array($booking->status, [
-            BookingStatus::Confirmed->value,
-            BookingStatus::Pending->value,
+            BookingStatus::Confirmed,
+            BookingStatus::Pending,
         ], true)) {
             throw new BusinessException('Booking cannot be rescheduled in its current state.', 'booking_not_reschedulable');
         }

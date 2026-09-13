@@ -108,6 +108,106 @@ class AvailabilityService
         return $slots;
     }
 
+    /**
+     * Validate that a concrete time range can be booked for the studio.
+     *
+     * @throws BusinessException
+     */
+    public function validateSlot(
+        int $studioId,
+        Carbon $startAt,
+        Carbon $endAt,
+        int $guestCount,
+        ?int $excludeBookingId = null,
+        bool $enforceDurationLimits = true,
+    ): void {
+        $studio = $this->studioRepository->findOrFail($studioId);
+
+        if (! $studio->is_active) {
+            throw new BusinessException('Studio is not available for booking.', 'studio_inactive');
+        }
+
+        if ($endAt->lte($startAt)) {
+            throw new BusinessException('End time must be after start time.', 'invalid_time_range');
+        }
+
+        if ($guestCount < 1) {
+            throw new BusinessException('Guest count must be at least 1.', 'invalid_guest_count');
+        }
+
+        if ($guestCount > (int) $studio->capacity) {
+            throw new BusinessException('Guest count exceeds studio capacity.', 'capacity_exceeded');
+        }
+
+        $config = $this->appSettingsService->getBookingConfig();
+        $timezone = $config['timezone'];
+        $interval = $config['booking_interval_minutes'];
+        $minDuration = $config['minimum_booking_minutes'];
+        $maxDuration = $config['maximum_booking_minutes'];
+        $buffer = $config['cleanup_buffer_minutes'];
+
+        $startAt = $startAt->copy()->timezone($timezone);
+        $endAt = $endAt->copy()->timezone($timezone);
+        $durationMinutes = (int) $startAt->diffInMinutes($endAt);
+
+        if ($enforceDurationLimits) {
+            if ($durationMinutes < $minDuration || $durationMinutes > $maxDuration) {
+                throw new BusinessException('Requested duration is outside allowed booking limits.', 'invalid_duration');
+            }
+
+            if ($durationMinutes % $interval !== 0) {
+                throw new BusinessException('Requested duration must align with booking interval.', 'invalid_duration_interval');
+            }
+        }
+
+        $date = $startAt->toDateString();
+
+        if ($endAt->toDateString() !== $date) {
+            throw new BusinessException('Bookings must start and end on the same day.', 'invalid_time_range');
+        }
+
+        $schedule = $this->scheduleService->getEffectiveSchedule($studioId, $date);
+
+        if ($schedule['is_closed'] || ! $schedule['open_time'] || ! $schedule['close_time']) {
+            throw new BusinessException('Studio is closed on the selected date.', 'studio_closed');
+        }
+
+        $dayStart = Carbon::parse($date.' '.$schedule['open_time'], $timezone);
+        $dayEnd = Carbon::parse($date.' '.$schedule['close_time'], $timezone);
+
+        if ($startAt->lt($dayStart) || $endAt->gt($dayEnd)) {
+            throw new BusinessException('Selected slot is outside studio opening hours.', 'outside_opening_hours');
+        }
+
+        $bookings = $this->bookingRepository->getOverlappingForStudio(
+            $studioId,
+            $startAt->toDateTimeString(),
+            $endAt->toDateTimeString(),
+        );
+
+        if ($excludeBookingId) {
+            $bookings = $bookings->reject(fn ($booking) => (int) $booking->id === $excludeBookingId)->values();
+        }
+
+        $holds = $this->bookingHoldRepository->getActiveOverlappingForStudio(
+            $studioId,
+            $startAt->toDateTimeString(),
+            $endAt->toDateTimeString(),
+        );
+
+        $blocks = $this->studioBlockRepository->getOverlappingForStudio(
+            $studioId,
+            $startAt->toDateTimeString(),
+            $endAt->toDateTimeString(),
+        );
+
+        $occupied = $this->buildOccupiedPeriods($bookings, $holds, $blocks, $buffer, $timezone);
+
+        if (! $this->isSlotFree($startAt, $endAt, $occupied, $buffer)) {
+            throw new BusinessException('Selected slot is no longer available.', 'slot_unavailable');
+        }
+    }
+
     protected function buildOccupiedPeriods($bookings, $holds, $blocks, int $buffer, string $timezone): array
     {
         $periods = [];
