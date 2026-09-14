@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Api\V1;
 
+use App\Support\PublicStorageUrl;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -12,7 +13,7 @@ class ContentBannerResource extends JsonResource
         return [
             'id' => $this->id,
             'title' => $this->title,
-            'image_path' => $this->image_path,
+            'image_path' => PublicStorageUrl::from($this->image_path),
             'link_url' => $this->link_url,
             'sort_order' => $this->sort_order,
             'is_active' => $this->is_active,

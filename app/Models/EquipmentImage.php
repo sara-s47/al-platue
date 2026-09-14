@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\PublicStorageUrl;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -22,11 +23,10 @@ class EquipmentImage extends Model
     }
 
     /**
-     * Path relative to the project root: storage/app/public/{rel_path}
-     * No storage:link required — frontend prepends the API base URL.
+     * Public URL: {baseUrl}/storage/app/public/{rel_path}
      */
-    public function getPublicPathAttribute(): string
+    public function getPublicPathAttribute(): ?string
     {
-        return 'storage/app/public/'.ltrim((string) $this->path, '/');
+        return PublicStorageUrl::from($this->path);
     }
 }

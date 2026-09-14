@@ -12,7 +12,7 @@ class EquipmentResource extends JsonResource
         $images = $this->whenLoaded('images', function () {
             return $this->images->map(fn ($image) => [
                 'id' => $image->id,
-                'path' => $image->path,
+                'path' => $image->public_path,
                 'url' => $image->public_path,
             ])->values();
         });

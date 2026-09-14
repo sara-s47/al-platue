@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Api\V1;
 
+use App\Support\PublicStorageUrl;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -11,7 +12,7 @@ class StudioImageResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'path' => $this->path,
+            'path' => PublicStorageUrl::from($this->path),
             'alt_text' => $this->alt_text,
             'sort_order' => $this->sort_order,
         ];
