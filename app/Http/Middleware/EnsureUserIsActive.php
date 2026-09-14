@@ -14,12 +14,27 @@ class EnsureUserIsActive
     {
         $user = $request->user();
 
-        if (! $user || $user->status !== UserStatus::Active) {
+        if (! $user) {
             return ApiResponse::error(
                 message: 'Your account is not active.',
                 status: 403,
             );
         }
+
+        if ($user->status === UserStatus::Blocked) {
+            return ApiResponse::error(
+                message: 'Your account is not active.',
+                status: 403,
+            );
+        }
+
+        // TODO: temporary — allow access without phone OTP verification.
+        // if ($user->status !== UserStatus::Active) {
+        //     return ApiResponse::error(
+        //         message: 'Your account is not active.',
+        //         status: 403,
+        //     );
+        // }
 
         return $next($request);
     }

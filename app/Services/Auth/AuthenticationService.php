@@ -36,10 +36,15 @@ class AuthenticationService
                 'phone' => $data['phone'],
                 'email' => $data['email'] ?? null,
                 'password' => $data['password'],
-                'status' => UserStatus::Inactive,
+                // TODO: temporary — skip phone OTP verification. Restore Inactive + OTP send below.
+                'status' => UserStatus::Active,
+                // 'status' => UserStatus::Inactive,
             ]);
 
-            $this->otpService->send($user->phone);
+            // TODO: temporary — phone OTP verification is disabled.
+            // $this->otpService->send($user->phone);
+
+            $this->loyaltyService->awardWelcomePoints($user->id);
 
             return $user;
         });
@@ -180,9 +185,10 @@ class AuthenticationService
             throw new BusinessException('Account is blocked.', 'account_blocked', 403);
         }
 
-        if ($user->status === UserStatus::Inactive) {
-            throw new BusinessException('Account is not activated.', 'account_inactive', 403);
-        }
+        // TODO: temporary — allow login without phone OTP verification.
+        // if ($user->status === UserStatus::Inactive) {
+        //     throw new BusinessException('Account is not activated.', 'account_inactive', 403);
+        // }
     }
 
     protected function issueTokenResponse(User $user): array

@@ -26,7 +26,8 @@ class AuthController extends Controller
     {
         $user = $this->authService->register($request->validated());
 
-        return ApiResponse::success(new UserResource($user), 'Registration successful. Please verify OTP.', 201);
+        // TODO: temporary — OTP verification is skipped; user can log in immediately.
+        return ApiResponse::success(new UserResource($user), 'Registration successful.', 201);
     }
 
     public function verifyOtp(VerifyOtpRequest $request): JsonResponse
