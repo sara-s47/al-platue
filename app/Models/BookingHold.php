@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\BookingHoldStatus;
+use App\Enums\BookingMode;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -11,6 +12,7 @@ class BookingHold extends Model
     protected $fillable = [
         'user_id',
         'studio_id',
+        'booking_mode',
         'start_at',
         'end_at',
         'expires_at',
@@ -20,6 +22,7 @@ class BookingHold extends Model
     protected function casts(): array
     {
         return [
+            'booking_mode' => BookingMode::class,
             'start_at' => 'datetime',
             'end_at' => 'datetime',
             'expires_at' => 'datetime',

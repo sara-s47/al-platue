@@ -16,6 +16,7 @@ class AppSettingsSeeder extends Seeder
         'booking_hold_minutes' => ['value' => '15', 'type' => 'int'],
         'minimum_booking_minutes' => ['value' => '60', 'type' => 'int'],
         'maximum_booking_minutes' => ['value' => '480', 'type' => 'int'],
+        'max_daily_booking_days' => ['value' => '7', 'type' => 'int'],
         'booking_interval_minutes' => ['value' => '30', 'type' => 'int'],
         'cleanup_buffer_minutes' => ['value' => '15', 'type' => 'int'],
         'overtime_grace_minutes' => ['value' => '15', 'type' => 'int'],

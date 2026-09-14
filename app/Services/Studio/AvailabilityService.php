@@ -120,6 +120,7 @@ class AvailabilityService
         int $guestCount,
         ?int $excludeBookingId = null,
         bool $enforceDurationLimits = true,
+        ?int $excludeHoldId = null,
     ): void {
         $studio = $this->studioRepository->findOrFail($studioId);
 
@@ -195,6 +196,10 @@ class AvailabilityService
             $endAt->toDateTimeString(),
         );
 
+        if ($excludeHoldId) {
+            $holds = $holds->reject(fn ($hold) => (int) $hold->id === $excludeHoldId)->values();
+        }
+
         $blocks = $this->studioBlockRepository->getOverlappingForStudio(
             $studioId,
             $startAt->toDateTimeString(),
@@ -205,6 +210,172 @@ class AvailabilityService
 
         if (! $this->isSlotFree($startAt, $endAt, $occupied, $buffer)) {
             throw new BusinessException('Selected slot is no longer available.', 'slot_unavailable');
+        }
+    }
+
+    /**
+     * Validate a multi-day booking range (open hours each day, no overnight stay for the customer).
+     * Locks the studio from first open to last close so other bookings cannot overlap those days.
+     *
+     * @return array{
+     *     start_at: Carbon,
+     *     end_at: Carbon,
+     *     days_count: int,
+     *     days: list<array{date: string, open_time: string, close_time: string}>
+     * }
+     */
+    public function validateDailyRange(
+        int $studioId,
+        string $startDate,
+        string $endDate,
+        int $guestCount,
+        ?int $excludeBookingId = null,
+        ?int $excludeHoldId = null,
+    ): array {
+        $studio = $this->studioRepository->findOrFail($studioId);
+
+        if (! $studio->is_active) {
+            throw new BusinessException('Studio is not available for booking.', 'studio_inactive');
+        }
+
+        if ($guestCount < 1) {
+            throw new BusinessException('Guest count must be at least 1.', 'invalid_guest_count');
+        }
+
+        if ($guestCount > (int) $studio->capacity) {
+            throw new BusinessException('Guest count exceeds studio capacity.', 'capacity_exceeded');
+        }
+
+        $config = $this->appSettingsService->getBookingConfig();
+        $timezone = $config['timezone'];
+        $maxDays = $config['max_daily_booking_days'];
+        $buffer = $config['cleanup_buffer_minutes'];
+
+        $start = Carbon::parse($startDate, $timezone)->startOfDay();
+        $end = Carbon::parse($endDate, $timezone)->startOfDay();
+
+        if ($end->lt($start)) {
+            throw new BusinessException('End date must be on or after start date.', 'invalid_date_range');
+        }
+
+        $daysCount = (int) $start->diffInDays($end) + 1;
+
+        if ($daysCount < 1 || $daysCount > $maxDays) {
+            throw new BusinessException(
+                "Daily bookings must be between 1 and {$maxDays} days.",
+                'invalid_daily_duration',
+            );
+        }
+
+        $days = [];
+        $cursor = $start->copy();
+
+        while ($cursor->lte($end)) {
+            $date = $cursor->toDateString();
+            $schedule = $this->scheduleService->getEffectiveSchedule($studioId, $date);
+
+            if ($schedule['is_closed'] || ! $schedule['open_time'] || ! $schedule['close_time']) {
+                throw new BusinessException(
+                    "Studio is closed on {$date}.",
+                    'studio_closed',
+                );
+            }
+
+            $days[] = [
+                'date' => $date,
+                'open_time' => $schedule['open_time'],
+                'close_time' => $schedule['close_time'],
+            ];
+
+            $cursor->addDay();
+        }
+
+        $rangeStart = Carbon::parse($days[0]['date'].' '.$days[0]['open_time'], $timezone);
+        $lastDay = $days[array_key_last($days)];
+        $rangeEnd = Carbon::parse($lastDay['date'].' '.$lastDay['close_time'], $timezone);
+
+        $bookings = $this->bookingRepository->getOverlappingForStudio(
+            $studioId,
+            $rangeStart->toDateTimeString(),
+            $rangeEnd->toDateTimeString(),
+        );
+
+        if ($excludeBookingId) {
+            $bookings = $bookings->reject(fn ($booking) => (int) $booking->id === $excludeBookingId)->values();
+        }
+
+        $holds = $this->bookingHoldRepository->getActiveOverlappingForStudio(
+            $studioId,
+            $rangeStart->toDateTimeString(),
+            $rangeEnd->toDateTimeString(),
+        );
+
+        if ($excludeHoldId) {
+            $holds = $holds->reject(fn ($hold) => (int) $hold->id === $excludeHoldId)->values();
+        }
+
+        $blocks = $this->studioBlockRepository->getOverlappingForStudio(
+            $studioId,
+            $rangeStart->toDateTimeString(),
+            $rangeEnd->toDateTimeString(),
+        );
+
+        $occupied = $this->buildOccupiedPeriods($bookings, $holds, $blocks, $buffer, $timezone);
+
+        if (! $this->isSlotFree($rangeStart, $rangeEnd, $occupied, $buffer)) {
+            throw new BusinessException('Selected date range is no longer available.', 'slot_unavailable');
+        }
+
+        return [
+            'start_at' => $rangeStart,
+            'end_at' => $rangeEnd,
+            'days_count' => $daysCount,
+            'days' => $days,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     available: bool,
+     *     start_date: string,
+     *     end_date: string,
+     *     days_count: int,
+     *     days: list<array{date: string, open_time: string, close_time: string}>,
+     *     start_at: string|null,
+     *     end_at: string|null,
+     *     reason: string|null
+     * }
+     */
+    public function checkDailyAvailability(
+        int $studioId,
+        string $startDate,
+        string $endDate,
+        int $guestCount = 1,
+    ): array {
+        try {
+            $result = $this->validateDailyRange($studioId, $startDate, $endDate, $guestCount);
+
+            return [
+                'available' => true,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'days_count' => $result['days_count'],
+                'days' => $result['days'],
+                'start_at' => $result['start_at']->toDateTimeString(),
+                'end_at' => $result['end_at']->toDateTimeString(),
+                'reason' => null,
+            ];
+        } catch (BusinessException $e) {
+            return [
+                'available' => false,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'days_count' => 0,
+                'days' => [],
+                'start_at' => null,
+                'end_at' => null,
+                'reason' => $e->getErrorCode(),
+            ];
         }
     }
 

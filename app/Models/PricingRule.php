@@ -16,6 +16,7 @@ class PricingRule extends Model
         'end_time',
         'specific_date',
         'price_per_hour',
+        'price_per_day',
         'priority',
         'is_active',
     ];
@@ -27,6 +28,7 @@ class PricingRule extends Model
             'day_of_week' => 'integer',
             'specific_date' => 'date',
             'price_per_hour' => 'decimal:2',
+            'price_per_day' => 'decimal:2',
             'priority' => 'integer',
             'is_active' => 'boolean',
         ];

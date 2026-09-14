@@ -20,6 +20,7 @@ class UpdatePricingRuleRequest extends FormRequest
             'rule_type' => ['sometimes', 'string', Rule::enum(PricingRuleType::class)],
             'price_per_hour' => 'sometimes|numeric|min:0',
             'hourly_rate' => 'sometimes|numeric|min:0',
+            'price_per_day' => 'nullable|numeric|min:0',
             'day_of_week' => 'nullable|integer|between:0,6',
             'start_time' => 'nullable|date_format:H:i',
             'end_time' => 'nullable|date_format:H:i',

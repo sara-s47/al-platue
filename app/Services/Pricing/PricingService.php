@@ -2,6 +2,7 @@
 
 namespace App\Services\Pricing;
 
+use App\Enums\BookingMode;
 use App\Enums\HospitalityPricingModel;
 use App\Enums\PricingRuleType;
 use App\Exceptions\BusinessException;
@@ -41,6 +42,7 @@ class PricingService
     /**
      * @param  array<int, array{id: int, quantity: int}>  $equipment
      * @param  array<int, array{id: int, quantity: int}>  $hospitality
+     * @param  list<array{date: string, open_time: string, close_time: string}>|null  $days
      * @return array<string, mixed>
      */
     public function calculateQuote(
@@ -54,13 +56,20 @@ class PricingService
         ?int $pointsToRedeem = null,
         ?int $userId = null,
         int $guestCount = 1,
+        BookingMode $bookingMode = BookingMode::Hourly,
+        ?array $days = null,
     ): array {
         if ($endAt->lte($startAt)) {
             throw new BusinessException('End time must be after start time.', 'invalid_time_range');
         }
 
+        if ($bookingMode === BookingMode::Daily && $packageId !== null) {
+            throw new BusinessException('Packages cannot be used with daily bookings.', 'package_not_allowed_for_daily');
+        }
+
         $lineItems = [];
         $subtotal = 0.0;
+        $dayBreakdown = [];
 
         if ($packageId !== null) {
             $this->packageService->validatePackageItems($packageId, $studioId);
@@ -78,6 +87,25 @@ class PricingService
             ];
 
             $subtotal += $packagePrice;
+        } elseif ($bookingMode === BookingMode::Daily) {
+            if (empty($days)) {
+                throw new BusinessException('Daily booking days are required for pricing.', 'daily_days_required');
+            }
+
+            $studioTotal = $this->calculateStudioDailyPrice($studioId, $days);
+            $dayBreakdown = $studioTotal['days'];
+            $daysCount = count($days);
+
+            $lineItems[] = [
+                'item_type' => 'studio',
+                'item_id' => $studioId,
+                'description' => "Studio daily rental ({$daysCount} day".($daysCount > 1 ? 's' : '').')',
+                'quantity' => $daysCount,
+                'unit_price' => $studioTotal['average_daily_rate'],
+                'discount_amount' => 0,
+                'total_price' => $studioTotal['total'],
+            ];
+            $subtotal += $studioTotal['total'];
         } else {
             $studioTotal = $this->calculateStudioPrice($studioId, $startAt, $endAt);
             $lineItems[] = [
@@ -149,6 +177,9 @@ class PricingService
 
         return [
             'studio_id' => $studioId,
+            'booking_mode' => $bookingMode->value,
+            'days_count' => $bookingMode === BookingMode::Daily ? count($days ?? []) : null,
+            'days' => $bookingMode === BookingMode::Daily ? $dayBreakdown : null,
             'start_at' => $startAt->toIso8601String(),
             'end_at' => $endAt->toIso8601String(),
             'line_items' => $lineItems,
@@ -196,6 +227,38 @@ class PricingService
         ];
     }
 
+    /**
+     * @param  list<array{date: string, open_time: string, close_time: string}>  $days
+     * @return array{total: float, average_daily_rate: float, days: list<array{date: string, open_time: string, close_time: string, daily_rate: float}>}
+     */
+    public function calculateStudioDailyPrice(int $studioId, array $days): array
+    {
+        $rules = $this->getActiveRules($studioId);
+        $timezone = $this->appSettings->getBookingConfig()['timezone'];
+        $total = 0.0;
+        $breakdown = [];
+
+        foreach ($days as $day) {
+            $moment = Carbon::parse($day['date'].' '.$day['open_time'], $timezone);
+            $dailyRate = $this->resolveDailyRate($rules, $moment);
+            $total += $dailyRate;
+            $breakdown[] = [
+                'date' => $day['date'],
+                'open_time' => $day['open_time'],
+                'close_time' => $day['close_time'],
+                'daily_rate' => $dailyRate,
+            ];
+        }
+
+        $count = count($days);
+
+        return [
+            'total' => round($total, 2),
+            'average_daily_rate' => $count > 0 ? round($total / $count, 2) : 0,
+            'days' => $breakdown,
+        ];
+    }
+
     protected function getActiveRules(int $studioId): Collection
     {
         return DB::table('pricing_rules')
@@ -206,7 +269,32 @@ class PricingService
 
     protected function resolveHourlyRate(Collection $rules, Carbon $moment): float
     {
-        $matching = $rules->filter(function ($rule) use ($moment) {
+        $best = $this->resolveBestRule($rules, $moment, forDaily: false);
+
+        return (float) $best->price_per_hour;
+    }
+
+    protected function resolveDailyRate(Collection $rules, Carbon $moment): float
+    {
+        $best = $this->resolveBestRule($rules, $moment, forDaily: true);
+
+        if ($best->price_per_day === null) {
+            throw new BusinessException(
+                'Daily price is not configured for the selected date.',
+                'daily_price_not_configured',
+            );
+        }
+
+        return (float) $best->price_per_day;
+    }
+
+    protected function resolveBestRule(Collection $rules, Carbon $moment, bool $forDaily): object
+    {
+        $matching = $rules->filter(function ($rule) use ($moment, $forDaily) {
+            if ($forDaily && $rule->price_per_day === null) {
+                return false;
+            }
+
             if ($rule->rule_type === PricingRuleType::DateSpecific->value) {
                 return $rule->specific_date === $moment->toDateString();
             }
@@ -214,10 +302,19 @@ class PricingService
             if ($rule->rule_type === PricingRuleType::Weekend->value) {
                 $weekendDays = [5, 6];
 
+                if ($rule->day_of_week !== null) {
+                    return (int) $rule->day_of_week === (int) $moment->dayOfWeek;
+                }
+
                 return in_array((int) $moment->dayOfWeek, $weekendDays, true);
             }
 
             if ($rule->rule_type === PricingRuleType::Peak->value) {
+                // Peak time windows apply to hourly only; skip for whole-day pricing.
+                if ($forDaily) {
+                    return false;
+                }
+
                 if ($rule->day_of_week !== null && (int) $rule->day_of_week !== (int) $moment->dayOfWeek) {
                     return false;
                 }
@@ -235,16 +332,19 @@ class PricingService
         });
 
         if ($matching->isEmpty()) {
-            throw new BusinessException('No pricing rule found for the requested time.', 'pricing_rule_not_found');
+            throw new BusinessException(
+                $forDaily
+                    ? 'No daily pricing rule found for the requested date.'
+                    : 'No pricing rule found for the requested time.',
+                $forDaily ? 'daily_price_not_configured' : 'pricing_rule_not_found',
+            );
         }
 
-        $best = $matching->sortByDesc(function ($rule) {
+        return $matching->sortByDesc(function ($rule) {
             $precedence = self::RULE_PRECEDENCE[$rule->rule_type] ?? 0;
 
             return ($precedence * 1000) + (int) $rule->priority;
         })->first();
-
-        return (float) $best->price_per_hour;
     }
 
     protected function calculateHospitalityPrice(object $item, int $quantity, int $guestCount): float

@@ -3,6 +3,7 @@
 namespace App\Services\Booking;
 
 use App\Enums\BookingChangeType;
+use App\Enums\BookingMode;
 use App\Enums\BookingStatus;
 use App\Exceptions\BusinessException;
 use App\Repositories\Contracts\BookingRepositoryInterface;
@@ -54,13 +55,32 @@ class ReschedulingService
             throw new BusinessException('Booking cannot be rescheduled in its current state.', 'booking_not_reschedulable');
         }
 
-        $this->availabilityService->validateSlot(
-            (int) $booking->studio_id,
-            $newStartAt,
-            $newEndAt,
-            (int) $booking->guest_count,
-            $bookingId,
-        );
+        $bookingMode = $booking->booking_mode instanceof BookingMode
+            ? $booking->booking_mode
+            : (BookingMode::tryFrom((string) ($booking->booking_mode ?? '')) ?? BookingMode::Hourly);
+
+        $days = null;
+
+        if ($bookingMode === BookingMode::Daily) {
+            $range = $this->availabilityService->validateDailyRange(
+                (int) $booking->studio_id,
+                $newStartAt->toDateString(),
+                $newEndAt->toDateString(),
+                (int) $booking->guest_count,
+                $bookingId,
+            );
+            $newStartAt = $range['start_at'];
+            $newEndAt = $range['end_at'];
+            $days = $range['days'];
+        } else {
+            $this->availabilityService->validateSlot(
+                (int) $booking->studio_id,
+                $newStartAt,
+                $newEndAt,
+                (int) $booking->guest_count,
+                $bookingId,
+            );
+        }
 
         $equipment = $this->getBookingEquipment($bookingId);
         $hospitality = $this->getBookingHospitality($bookingId);
@@ -81,13 +101,31 @@ class ReschedulingService
             $bookingId,
         );
 
+        $oldDays = null;
+        if ($bookingMode === BookingMode::Daily) {
+            $oldRange = $this->availabilityService->validateDailyRange(
+                (int) $booking->studio_id,
+                Carbon::parse($booking->start_at)->toDateString(),
+                Carbon::parse($booking->end_at)->toDateString(),
+                (int) $booking->guest_count,
+                $bookingId,
+            );
+            $oldDays = $oldRange['days'];
+        }
+
         $oldQuote = $this->pricingService->calculateQuote(
             (int) $booking->studio_id,
             Carbon::parse($booking->start_at),
             Carbon::parse($booking->end_at),
             $equipment,
             $hospitality,
-            $booking->package_id,
+            $bookingMode === BookingMode::Daily ? null : $booking->package_id,
+            null,
+            null,
+            null,
+            (int) $booking->guest_count,
+            $bookingMode,
+            $oldDays,
         );
 
         $newQuote = $this->pricingService->calculateQuote(
@@ -96,16 +134,24 @@ class ReschedulingService
             $newEndAt,
             $equipment,
             $hospitality,
-            $booking->package_id,
+            $bookingMode === BookingMode::Daily ? null : $booking->package_id,
+            null,
+            null,
+            null,
+            (int) $booking->guest_count,
+            $bookingMode,
+            $days,
         );
 
         $priceDifference = round($newQuote['total_amount'] - $oldQuote['total_amount'], 2);
-        $fee = (float) $policy->fee;
+        $fee = (float) ($policy->fee ?? 0);
 
         return [
             'price_difference' => $priceDifference,
             'fee' => $fee,
             'total_due' => max(0, $priceDifference + $fee),
+            'new_start_at' => $newStartAt,
+            'new_end_at' => $newEndAt,
         ];
     }
 
@@ -120,9 +166,12 @@ class ReschedulingService
             $validation = $this->validate($bookingId, $newStartAt, $newEndAt);
             $booking = $this->bookingRepository->findOrFail($bookingId);
 
+            $resolvedStart = $validation['new_start_at'] ?? $newStartAt;
+            $resolvedEnd = $validation['new_end_at'] ?? $newEndAt;
+
             $updated = $this->bookingRepository->update($bookingId, [
-                'start_at' => $newStartAt,
-                'end_at' => $newEndAt,
+                'start_at' => $resolvedStart,
+                'end_at' => $resolvedEnd,
                 'status' => BookingStatus::Rescheduled->value,
                 'total_amount' => round((float) $booking->total_amount + $validation['price_difference'] + $validation['fee'], 2),
                 'remaining_amount' => round((float) $booking->remaining_amount + $validation['total_due'], 2),
@@ -133,8 +182,8 @@ class ReschedulingService
                 'type' => BookingChangeType::Reschedule->value,
                 'old_start_at' => $booking->start_at,
                 'old_end_at' => $booking->end_at,
-                'new_start_at' => $newStartAt,
-                'new_end_at' => $newEndAt,
+                'new_start_at' => $resolvedStart,
+                'new_end_at' => $resolvedEnd,
                 'fee' => $validation['fee'],
                 'price_difference' => $validation['price_difference'],
                 'reason' => $reason,

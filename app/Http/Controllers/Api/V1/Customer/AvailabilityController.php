@@ -31,4 +31,22 @@ class AvailabilityController extends Controller
 
         return ApiResponse::success($slots);
     }
+
+    public function daily(Request $request, int $studioId): JsonResponse
+    {
+        $request->validate([
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after_or_equal:start_date',
+            'guest_count' => 'nullable|integer|min:1',
+        ]);
+
+        $result = $this->availabilityService->checkDailyAvailability(
+            $studioId,
+            $request->start_date,
+            $request->end_date,
+            $request->guest_count ? (int) $request->guest_count : 1,
+        );
+
+        return ApiResponse::success($result);
+    }
 }

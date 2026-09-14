@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\BookingMode;
 use App\Enums\BookingStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -15,6 +16,7 @@ class Booking extends Model
         'user_id',
         'studio_id',
         'package_id',
+        'booking_mode',
         'start_at',
         'end_at',
         'guest_count',
@@ -33,6 +35,7 @@ class Booking extends Model
     protected function casts(): array
     {
         return [
+            'booking_mode' => BookingMode::class,
             'start_at' => 'datetime',
             'end_at' => 'datetime',
             'guest_count' => 'integer',

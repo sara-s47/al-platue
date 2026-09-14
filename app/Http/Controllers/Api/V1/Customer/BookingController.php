@@ -45,17 +45,23 @@ class BookingController extends Controller
     public function quote(QuoteRequest $request): JsonResponse
     {
         $data = $request->validated();
+        $mode = \App\Enums\BookingMode::tryFrom((string) ($data['booking_mode'] ?? 'hourly'))
+            ?? \App\Enums\BookingMode::Hourly;
+
         $quote = $this->bookingService->createQuote(
             $request->user()->id,
             (int) $data['studio_id'],
-            Carbon::parse($data['start_at']),
-            Carbon::parse($data['end_at']),
+            isset($data['start_at']) ? Carbon::parse($data['start_at']) : null,
+            isset($data['end_at']) ? Carbon::parse($data['end_at']) : null,
             (int) $data['guest_count'],
             $data['equipment'] ?? [],
             $data['hospitality'] ?? [],
             $data['package_id'] ?? null,
             $data['promo_code'] ?? null,
             $data['points_to_redeem'] ?? null,
+            $mode,
+            $data['start_date'] ?? null,
+            $data['end_date'] ?? null,
         );
 
         return ApiResponse::success(new QuoteResource($quote));
@@ -88,12 +94,24 @@ class BookingController extends Controller
 
     public function reschedule(RescheduleBookingRequest $request, int $id): JsonResponse
     {
+        $data = $request->validated();
+
+        if (! empty($data['start_date']) && ! empty($data['end_date'])) {
+            $start = Carbon::parse($data['start_date'])->startOfDay();
+            $end = Carbon::parse($data['end_date'])->endOfDay();
+        } elseif (! empty($data['start_at']) && ! empty($data['end_at'])) {
+            $start = Carbon::parse($data['start_at']);
+            $end = Carbon::parse($data['end_at']);
+        } else {
+            return ApiResponse::error('Provide start_at/end_at or start_date/end_date.', null, 422);
+        }
+
         $booking = $this->bookingService->reschedule(
             $id,
-            Carbon::parse($request->start_at),
-            Carbon::parse($request->end_at),
+            $start,
+            $end,
             $request->user()->id,
-            $request->reason,
+            $data['reason'] ?? null,
         );
 
         return ApiResponse::success(new BookingResource($booking), 'Booking rescheduled.');

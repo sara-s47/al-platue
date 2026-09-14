@@ -28,6 +28,17 @@ class ExtensionService
         $booking = $this->bookingRepository->findOrFail($bookingId);
         $currentEnd = Carbon::parse($booking->end_at);
 
+        $bookingMode = $booking->booking_mode instanceof \App\Enums\BookingMode
+            ? $booking->booking_mode
+            : (\App\Enums\BookingMode::tryFrom((string) ($booking->booking_mode ?? '')) ?? \App\Enums\BookingMode::Hourly);
+
+        if ($bookingMode === \App\Enums\BookingMode::Daily) {
+            throw new BusinessException(
+                'Daily bookings cannot be extended by hours. Reschedule the end date instead.',
+                'daily_extension_not_supported',
+            );
+        }
+
         if ($newEndAt->lte($currentEnd)) {
             throw new BusinessException('Extension end time must be after current end time.', 'invalid_extension_time');
         }

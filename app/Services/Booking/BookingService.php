@@ -3,6 +3,7 @@
 namespace App\Services\Booking;
 
 use App\Enums\BookingChangeType;
+use App\Enums\BookingMode;
 use App\Enums\BookingStatus;
 use App\Exceptions\BusinessException;
 use App\Repositories\Contracts\BookingHoldRepositoryInterface;
@@ -46,16 +47,54 @@ class BookingService
     public function createQuote(
         int $userId,
         int $studioId,
-        Carbon $startAt,
-        Carbon $endAt,
+        ?Carbon $startAt,
+        ?Carbon $endAt,
         int $guestCount,
         array $equipment = [],
         array $hospitality = [],
         ?int $packageId = null,
         ?string $promoCode = null,
         ?int $pointsToRedeem = null,
+        BookingMode $bookingMode = BookingMode::Hourly,
+        ?string $startDate = null,
+        ?string $endDate = null,
+        ?int $excludeHoldId = null,
     ): array {
-        $this->availabilityService->validateSlot($studioId, $startAt, $endAt, $guestCount);
+        $days = null;
+
+        if ($bookingMode === BookingMode::Daily) {
+            if (! $startDate || ! $endDate) {
+                throw new BusinessException('start_date and end_date are required for daily bookings.', 'daily_dates_required');
+            }
+
+            $range = $this->availabilityService->validateDailyRange(
+                $studioId,
+                $startDate,
+                $endDate,
+                $guestCount,
+                null,
+                $excludeHoldId,
+            );
+
+            $startAt = $range['start_at'];
+            $endAt = $range['end_at'];
+            $days = $range['days'];
+        } else {
+            if (! $startAt || ! $endAt) {
+                throw new BusinessException('start_at and end_at are required for hourly bookings.', 'hourly_times_required');
+            }
+
+            $this->availabilityService->validateSlot(
+                $studioId,
+                $startAt,
+                $endAt,
+                $guestCount,
+                null,
+                true,
+                $excludeHoldId,
+            );
+        }
+
         $this->inventoryService->validateEquipmentAvailability($studioId, $equipment, $startAt, $endAt);
         $this->inventoryService->validateHospitalityAvailability($studioId, $hospitality, $startAt, $endAt);
 
@@ -70,6 +109,8 @@ class BookingService
             $pointsToRedeem,
             $userId,
             $guestCount,
+            $bookingMode,
+            $days,
         );
     }
 
@@ -108,18 +149,25 @@ class BookingService
             $startAt = Carbon::parse($hold->start_at);
             $endAt = Carbon::parse($hold->end_at);
             $studioId = (int) $hold->studio_id;
+            $bookingMode = $hold->booking_mode instanceof BookingMode
+                ? $hold->booking_mode
+                : (BookingMode::tryFrom((string) ($hold->booking_mode ?? '')) ?? BookingMode::Hourly);
 
             $quote = $this->createQuote(
                 $userId,
                 $studioId,
-                $startAt,
-                $endAt,
+                $bookingMode === BookingMode::Hourly ? $startAt : null,
+                $bookingMode === BookingMode::Hourly ? $endAt : null,
                 $guestCount,
                 $equipment,
                 $hospitality,
                 $packageId,
                 $promoCode,
                 $pointsToRedeem,
+                $bookingMode,
+                $bookingMode === BookingMode::Daily ? $startAt->toDateString() : null,
+                $bookingMode === BookingMode::Daily ? $endAt->toDateString() : null,
+                $holdId,
             );
 
             $booking = $this->bookingRepository->create([
@@ -127,6 +175,7 @@ class BookingService
                 'user_id' => $userId,
                 'studio_id' => $studioId,
                 'package_id' => $packageId,
+                'booking_mode' => $bookingMode->value,
                 'start_at' => $startAt,
                 'end_at' => $endAt,
                 'guest_count' => $guestCount,
@@ -161,7 +210,7 @@ class BookingService
                 $this->loyaltyService->redeemPoints($userId, $pointsToRedeem, $booking->id);
             }
 
-            $this->holdService->convertHold($holdId, $booking->id);
+            $this->holdService->convertHold($holdId);
 
             return $booking->fresh();
         });
@@ -178,14 +227,27 @@ class BookingService
 
             $startAt = Carbon::parse($booking->start_at);
             $endAt = Carbon::parse($booking->end_at);
+            $bookingMode = $booking->booking_mode instanceof BookingMode
+                ? $booking->booking_mode
+                : (BookingMode::tryFrom((string) ($booking->booking_mode ?? '')) ?? BookingMode::Hourly);
 
-            $this->availabilityService->validateSlot(
-                (int) $booking->studio_id,
-                $startAt,
-                $endAt,
-                (int) $booking->guest_count,
-                $bookingId,
-            );
+            if ($bookingMode === BookingMode::Daily) {
+                $this->availabilityService->validateDailyRange(
+                    (int) $booking->studio_id,
+                    $startAt->toDateString(),
+                    $endAt->toDateString(),
+                    (int) $booking->guest_count,
+                    $bookingId,
+                );
+            } else {
+                $this->availabilityService->validateSlot(
+                    (int) $booking->studio_id,
+                    $startAt,
+                    $endAt,
+                    (int) $booking->guest_count,
+                    $bookingId,
+                );
+            }
 
             $equipment = $this->getBookingEquipment($bookingId);
             $hospitality = $this->getBookingHospitality($bookingId);
@@ -269,26 +331,46 @@ class BookingService
     {
         return DB::transaction(function () use ($bookingId, $startAt, $userId) {
             $original = $this->bookingRepository->findOrFail($bookingId);
-            $durationMinutes = Carbon::parse($original->start_at)->diffInMinutes(Carbon::parse($original->end_at));
-            $endAt = $startAt->copy()->addMinutes($durationMinutes);
+            $uid = $userId ?? (int) $original->user_id;
+            $user = \App\Models\User::query()->findOrFail($uid);
+
+            $bookingMode = $original->booking_mode instanceof BookingMode
+                ? $original->booking_mode
+                : (BookingMode::tryFrom((string) ($original->booking_mode ?? '')) ?? BookingMode::Hourly);
 
             $equipment = $this->getBookingEquipment($bookingId);
             $hospitality = $this->getBookingHospitality($bookingId);
 
-            $hold = $this->holdService->createHold(
-                $userId ?? (int) $original->user_id,
-                (int) $original->studio_id,
-                $startAt,
-                $endAt,
-            );
+            if ($bookingMode === BookingMode::Daily) {
+                $daysCount = (int) Carbon::parse($original->start_at)->startOfDay()
+                    ->diffInDays(Carbon::parse($original->end_at)->startOfDay()) + 1;
+
+                $hold = $this->holdService->createHold($user, [
+                    'studio_id' => (int) $original->studio_id,
+                    'booking_mode' => BookingMode::Daily->value,
+                    'start_date' => $startAt->toDateString(),
+                    'end_date' => $startAt->copy()->addDays($daysCount - 1)->toDateString(),
+                    'guest_count' => (int) $original->guest_count,
+                ]);
+            } else {
+                $durationMinutes = Carbon::parse($original->start_at)->diffInMinutes(Carbon::parse($original->end_at));
+
+                $hold = $this->holdService->createHold($user, [
+                    'studio_id' => (int) $original->studio_id,
+                    'booking_mode' => BookingMode::Hourly->value,
+                    'start_at' => $startAt->toDateTimeString(),
+                    'end_at' => $startAt->copy()->addMinutes($durationMinutes)->toDateTimeString(),
+                    'guest_count' => (int) $original->guest_count,
+                ]);
+            }
 
             return $this->createFromHold(
                 $hold->id,
-                $userId ?? (int) $original->user_id,
+                $uid,
                 (int) $original->guest_count,
                 $equipment,
                 $hospitality,
-                $original->package_id,
+                $bookingMode === BookingMode::Daily ? null : $original->package_id,
             );
         });
     }

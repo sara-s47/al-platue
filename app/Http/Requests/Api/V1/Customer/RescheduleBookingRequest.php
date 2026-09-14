@@ -14,8 +14,11 @@ class RescheduleBookingRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'start_at' => 'required|date',
-            'end_at' => 'required|date|after:start_at',
+            // Hourly: start_at + end_at. Daily: start_date + end_date (or start_at/end_at datetimes).
+            'start_at' => 'nullable|date',
+            'end_at' => 'nullable|date|after:start_at',
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
             'reason' => 'nullable|string|max:500',
         ];
     }

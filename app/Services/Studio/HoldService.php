@@ -3,6 +3,7 @@
 namespace App\Services\Studio;
 
 use App\Enums\BookingHoldStatus;
+use App\Enums\BookingMode;
 use App\Exceptions\BusinessException;
 use App\Models\BookingHold;
 use App\Models\User;
@@ -27,26 +28,41 @@ class HoldService
         return DB::transaction(function () use ($user, $data) {
             $this->studioRepository->findOrFail($data['studio_id']);
 
-            $startAt = Carbon::parse($data['start_at']);
-            $endAt = Carbon::parse($data['end_at']);
-            $durationMinutes = $startAt->diffInMinutes($endAt);
+            $mode = BookingMode::tryFrom((string) ($data['booking_mode'] ?? BookingMode::Hourly->value))
+                ?? BookingMode::Hourly;
 
-            $slots = $this->availabilityService->getAvailableSlots(
-                $data['studio_id'],
-                $startAt->toDateString(),
-                $durationMinutes,
-                $data['guest_count'] ?? null,
-                $data['equipment_ids'] ?? null,
-                $data['hospitality_ids'] ?? null,
-            );
+            if ($mode === BookingMode::Daily) {
+                $range = $this->availabilityService->validateDailyRange(
+                    (int) $data['studio_id'],
+                    (string) $data['start_date'],
+                    (string) $data['end_date'],
+                    (int) ($data['guest_count'] ?? 1),
+                );
 
-            $isAvailable = collect($slots)->contains(function (array $slot) use ($startAt, $endAt) {
-                return Carbon::parse($slot['start_at'])->equalTo($startAt)
-                    && Carbon::parse($slot['end_at'])->equalTo($endAt);
-            });
+                $startAt = $range['start_at'];
+                $endAt = $range['end_at'];
+            } else {
+                $startAt = Carbon::parse($data['start_at']);
+                $endAt = Carbon::parse($data['end_at']);
+                $durationMinutes = $startAt->diffInMinutes($endAt);
 
-            if (! $isAvailable) {
-                throw new BusinessException('Selected slot is no longer available.', 'slot_unavailable');
+                $slots = $this->availabilityService->getAvailableSlots(
+                    $data['studio_id'],
+                    $startAt->toDateString(),
+                    $durationMinutes,
+                    $data['guest_count'] ?? null,
+                    $data['equipment_ids'] ?? null,
+                    $data['hospitality_ids'] ?? null,
+                );
+
+                $isAvailable = collect($slots)->contains(function (array $slot) use ($startAt, $endAt) {
+                    return Carbon::parse($slot['start_at'])->equalTo($startAt)
+                        && Carbon::parse($slot['end_at'])->equalTo($endAt);
+                });
+
+                if (! $isAvailable) {
+                    throw new BusinessException('Selected slot is no longer available.', 'slot_unavailable');
+                }
             }
 
             $config = $this->appSettingsService->getBookingConfig();
@@ -55,6 +71,7 @@ class HoldService
             return $this->bookingHoldRepository->create([
                 'user_id' => $user->id,
                 'studio_id' => $data['studio_id'],
+                'booking_mode' => $mode->value,
                 'start_at' => $startAt,
                 'end_at' => $endAt,
                 'expires_at' => $expiresAt,

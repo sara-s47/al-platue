@@ -24,6 +24,14 @@ class OvertimeService
      */
     public function calculateOvertime(Model $booking, ?Carbon $actualEndAt = null): array
     {
+        $bookingMode = $booking->booking_mode instanceof \App\Enums\BookingMode
+            ? $booking->booking_mode
+            : (\App\Enums\BookingMode::tryFrom((string) ($booking->booking_mode ?? '')) ?? \App\Enums\BookingMode::Hourly);
+
+        if ($bookingMode === \App\Enums\BookingMode::Daily) {
+            throw new BusinessException('Overtime does not apply to daily bookings.', 'daily_overtime_not_supported');
+        }
+
         $scheduledEnd = Carbon::parse($booking->end_at);
         $actualEnd = $actualEndAt ?? Carbon::now();
         $graceMinutes = (int) $this->appSettings->get('overtime_grace_minutes', 15);

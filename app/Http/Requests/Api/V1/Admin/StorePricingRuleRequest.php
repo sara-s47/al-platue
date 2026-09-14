@@ -20,6 +20,7 @@ class StorePricingRuleRequest extends FormRequest
             'rule_type' => ['required', 'string', Rule::enum(PricingRuleType::class)],
             'price_per_hour' => 'required_without:hourly_rate|numeric|min:0',
             'hourly_rate' => 'required_without:price_per_hour|numeric|min:0',
+            'price_per_day' => 'nullable|numeric|min:0',
             'day_of_week' => 'nullable|integer|between:0,6',
             'start_time' => 'nullable|date_format:H:i',
             'end_time' => 'nullable|date_format:H:i|after:start_time',

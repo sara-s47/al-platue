@@ -65,6 +65,7 @@ Route::prefix('v1')->group(function () {
         Route::get('studios', [StudioController::class, 'index']);
         Route::get('studios/{id}', [StudioController::class, 'show']);
         Route::get('studios/{studioId}/availability', [AvailabilityController::class, 'index']);
+        Route::get('studios/{studioId}/availability/daily', [AvailabilityController::class, 'daily']);
         Route::get('studios/{studioId}/equipment', [EquipmentController::class, 'index']);
         Route::get('studios/{studioId}/hospitality', [HospitalityController::class, 'index']);
         Route::get('studios/{studioId}/packages', [PackageController::class, 'index']);

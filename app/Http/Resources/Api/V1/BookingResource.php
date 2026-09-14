@@ -14,6 +14,7 @@ class BookingResource extends JsonResource
             'booking_number' => $this->booking_number,
             'studio_id' => $this->studio_id,
             'package_id' => $this->package_id,
+            'booking_mode' => $this->booking_mode,
             'start_at' => $this->start_at,
             'end_at' => $this->end_at,
             'guest_count' => $this->guest_count,
