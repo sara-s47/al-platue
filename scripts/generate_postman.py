@@ -11,6 +11,7 @@ SAMPLE_BODIES = {
         "phone": "+201234567890",
         "email": "john@example.com",
         "password": "password123",
+        "password_confirmation": "password123",
     },
     "POST api/v1/auth/login": {"phone": "+201000000003", "password": "password"},
     "POST api/v1/auth/verify-otp": {"phone": "+201234567890", "code": "123456"},

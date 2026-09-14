@@ -35,7 +35,7 @@ class AuthenticationService
                 'name' => $data['name'],
                 'phone' => $data['phone'],
                 'email' => $data['email'] ?? null,
-                'password' => $data['password'] ?? null,
+                'password' => $data['password'],
                 'status' => UserStatus::Inactive,
             ]);
 
