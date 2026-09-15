@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminReviewController;
 use App\Http\Controllers\Api\V1\Admin\AdminRoleController;
 use App\Http\Controllers\Api\V1\Admin\AdminScheduleController;
 use App\Http\Controllers\Api\V1\Admin\AdminSegmentController;
+use App\Http\Controllers\Api\V1\Admin\AdminStaffController;
 use App\Http\Controllers\Api\V1\Admin\AdminStudioController;
 use App\Http\Controllers\Api\V1\Admin\AdminUserController;
 use App\Http\Controllers\Api\V1\Auth\AuthController;
@@ -292,6 +293,17 @@ Route::prefix('v1')->group(function () {
             Route::post('/', [AdminRoleController::class, 'store']);
             Route::put('{id}', [AdminRoleController::class, 'update']);
             Route::delete('{id}', [AdminRoleController::class, 'destroy']);
+        });
+
+        Route::middleware('permission:roles.manage')->prefix('admins')->group(function () {
+            Route::get('/', [AdminStaffController::class, 'index']);
+            Route::post('/', [AdminStaffController::class, 'store']);
+            Route::get('{id}', [AdminStaffController::class, 'show']);
+            Route::put('{id}', [AdminStaffController::class, 'update']);
+            Route::put('{id}/roles', [AdminStaffController::class, 'syncRoles']);
+            Route::put('{id}/permissions', [AdminStaffController::class, 'syncPermissions']);
+            Route::post('{id}/permissions/give', [AdminStaffController::class, 'givePermissions']);
+            Route::post('{id}/permissions/revoke', [AdminStaffController::class, 'revokePermissions']);
         });
 
         Route::middleware('permission:settings.manage')->prefix('settings')->group(function () {
