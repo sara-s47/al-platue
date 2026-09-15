@@ -9,13 +9,18 @@ use App\Http\Requests\Api\V1\Admin\UpdateEquipmentRequest;
 use App\Http\Resources\Api\V1\EquipmentResource;
 use App\Http\Responses\ApiResponse;
 use App\Services\Equipment\EquipmentService;
+use App\Services\Inventory\InventoryService;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 
 class AdminEquipmentController extends Controller
 {
-    public function __construct(protected EquipmentService $equipmentService) {}
+    public function __construct(
+        protected EquipmentService $equipmentService,
+        protected InventoryService $inventoryService,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -72,6 +77,24 @@ class AdminEquipmentController extends Controller
     {
         $this->equipmentService->unassignFromStudio($equipmentId, $studioId);
         return ApiResponse::success(message: 'Equipment unassigned.');
+    }
+
+    public function availability(Request $request, int $equipmentId): JsonResponse
+    {
+        $data = $request->validate([
+            'studio_id' => 'required|integer|exists:studios,id',
+            'start_at' => 'required|date',
+            'end_at' => 'required|date|after:start_at',
+        ]);
+
+        return ApiResponse::success(
+            $this->inventoryService->getEquipmentAvailabilityForStudio(
+                (int) $data['studio_id'],
+                $equipmentId,
+                Carbon::parse($data['start_at']),
+                Carbon::parse($data['end_at']),
+            )
+        );
     }
 
     /**

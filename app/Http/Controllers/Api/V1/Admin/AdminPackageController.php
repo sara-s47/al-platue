@@ -29,7 +29,7 @@ class AdminPackageController extends Controller
 
     public function show(int $id): JsonResponse
     {
-        return ApiResponse::success(new PackageResource($this->packageService->findOrFail($id)));
+        return ApiResponse::success(new PackageResource($this->packageService->findWithDetails($id)));
     }
 
     public function update(StorePackageRequest $request, int $id): JsonResponse

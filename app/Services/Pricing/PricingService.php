@@ -70,10 +70,45 @@ class PricingService
         $lineItems = [];
         $subtotal = 0.0;
         $dayBreakdown = [];
+        $chargeableEquipment = $equipment;
+        $chargeableHospitality = $hospitality;
+        $includedEquipment = [];
+        $includedHospitality = [];
 
         if ($packageId !== null) {
             $this->packageService->validatePackageItems($packageId, $studioId);
             $package = $this->packageRepository->findOrFail($packageId);
+
+            $expectedMinutes = (int) $package->duration_minutes;
+            $actualMinutes = (int) $startAt->diffInMinutes($endAt);
+
+            if ($actualMinutes !== $expectedMinutes) {
+                throw new BusinessException(
+                    "Package duration must be exactly {$expectedMinutes} minutes.",
+                    'package_duration_mismatch',
+                    422,
+                    null,
+                    [
+                        'expected_minutes' => $expectedMinutes,
+                        'actual_minutes' => $actualMinutes,
+                    ],
+                );
+            }
+
+            $equipmentMerge = $this->packageService->mergeInventoryItems(
+                $equipment,
+                $this->packageService->getIncludedEquipment($packageId),
+            );
+            $hospitalityMerge = $this->packageService->mergeInventoryItems(
+                $hospitality,
+                $this->packageService->getIncludedHospitality($packageId),
+            );
+
+            $includedEquipment = $equipmentMerge['included'];
+            $includedHospitality = $hospitalityMerge['included'];
+            $chargeableEquipment = $equipmentMerge['chargeable'];
+            $chargeableHospitality = $hospitalityMerge['chargeable'];
+
             $packagePrice = (float) $package->price;
 
             $lineItems[] = [
@@ -84,9 +119,38 @@ class PricingService
                 'unit_price' => $packagePrice,
                 'discount_amount' => 0,
                 'total_price' => $packagePrice,
+                'included' => false,
             ];
 
             $subtotal += $packagePrice;
+
+            foreach ($includedEquipment as $item) {
+                $record = $this->equipmentRepository->findOrFail((int) $item['id']);
+                $lineItems[] = [
+                    'item_type' => 'equipment',
+                    'item_id' => $record->id,
+                    'description' => $record->name.' (included in package)',
+                    'quantity' => (int) $item['quantity'],
+                    'unit_price' => 0,
+                    'discount_amount' => 0,
+                    'total_price' => 0,
+                    'included' => true,
+                ];
+            }
+
+            foreach ($includedHospitality as $item) {
+                $record = $this->hospitalityItemRepository->findOrFail((int) $item['id']);
+                $lineItems[] = [
+                    'item_type' => 'hospitality',
+                    'item_id' => $record->id,
+                    'description' => $record->name.' (included in package)',
+                    'quantity' => (int) $item['quantity'],
+                    'unit_price' => 0,
+                    'discount_amount' => 0,
+                    'total_price' => 0,
+                    'included' => true,
+                ];
+            }
         } elseif ($bookingMode === BookingMode::Daily) {
             if (empty($days)) {
                 throw new BusinessException('Daily booking days are required for pricing.', 'daily_days_required');
@@ -120,7 +184,7 @@ class PricingService
             $subtotal += $studioTotal['total'];
         }
 
-        foreach ($equipment as $item) {
+        foreach ($chargeableEquipment as $item) {
             $record = $this->equipmentRepository->findOrFail((int) $item['id']);
             $qty = (int) $item['quantity'];
             $unitPrice = (float) $record->price;
@@ -134,11 +198,12 @@ class PricingService
                 'unit_price' => $unitPrice,
                 'discount_amount' => 0,
                 'total_price' => $total,
+                'included' => false,
             ];
             $subtotal += $total;
         }
 
-        foreach ($hospitality as $item) {
+        foreach ($chargeableHospitality as $item) {
             $record = $this->hospitalityItemRepository->findOrFail((int) $item['id']);
             $qty = (int) $item['quantity'];
             $total = $this->calculateHospitalityPrice($record, $qty, $guestCount);
@@ -151,6 +216,7 @@ class PricingService
                 'unit_price' => $qty > 0 ? round($total / $qty, 2) : 0,
                 'discount_amount' => 0,
                 'total_price' => $total,
+                'included' => false,
             ];
             $subtotal += $total;
         }
@@ -177,6 +243,7 @@ class PricingService
 
         return [
             'studio_id' => $studioId,
+            'package_id' => $packageId,
             'booking_mode' => $bookingMode->value,
             'days_count' => $bookingMode === BookingMode::Daily ? count($days ?? []) : null,
             'days' => $bookingMode === BookingMode::Daily ? $dayBreakdown : null,
@@ -190,6 +257,56 @@ class PricingService
             'tax_amount' => $taxAmount,
             'total_amount' => $totalAmount,
             'promo' => $promoDetails,
+        ];
+    }
+
+    /**
+     * Resolve the winning hourly and daily pricing rule for a calendar day (admin day show).
+     *
+     * @return array{hourly: array<string, mixed>|null, daily: array<string, mixed>|null}
+     */
+    public function resolvePricingForDate(int $studioId, string $date): array
+    {
+        $rules = $this->getActiveRules($studioId);
+        $timezone = $this->appSettings->getBookingConfig()['timezone'];
+        $moment = Carbon::parse($date.' 12:00:00', $timezone);
+
+        $hourly = null;
+        $daily = null;
+
+        try {
+            $hourlyRule = $this->resolveBestRule($rules, $moment, forDaily: false);
+            $hourly = [
+                'rule_id' => $hourlyRule->id,
+                'rule_type' => $hourlyRule->rule_type,
+                'price_per_hour' => (float) $hourlyRule->price_per_hour,
+                'price_per_day' => $hourlyRule->price_per_day !== null ? (float) $hourlyRule->price_per_day : null,
+                'priority' => (int) $hourlyRule->priority,
+            ];
+        } catch (BusinessException) {
+            // no hourly rule
+        }
+
+        try {
+            $dailyRule = $this->resolveBestRule($rules, $moment, forDaily: true);
+            $daily = [
+                'rule_id' => $dailyRule->id,
+                'rule_type' => $dailyRule->rule_type,
+                'price_per_hour' => (float) $dailyRule->price_per_hour,
+                'price_per_day' => $dailyRule->price_per_day !== null ? (float) $dailyRule->price_per_day : null,
+                'priority' => (int) $dailyRule->priority,
+            ];
+        } catch (BusinessException) {
+            // no daily rule
+        }
+
+        return [
+            'hourly' => $hourly,
+            'daily' => $daily,
+            'price_per_hour' => $hourly['price_per_hour'] ?? null,
+            'price_per_day' => $daily['price_per_day'] ?? null,
+            'winning_hourly_rule_type' => $hourly['rule_type'] ?? null,
+            'winning_daily_rule_type' => $daily['rule_type'] ?? null,
         ];
     }
 

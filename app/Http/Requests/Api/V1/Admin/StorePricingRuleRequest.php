@@ -26,6 +26,7 @@ class StorePricingRuleRequest extends FormRequest
             'end_time' => 'nullable|date_format:H:i|after:start_time',
             'specific_date' => 'nullable|date',
             'start_date' => 'nullable|date',
+            'end_date' => 'prohibited',
             'priority' => 'nullable|integer|min:0',
             'is_active' => 'boolean',
         ];

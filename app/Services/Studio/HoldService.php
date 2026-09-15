@@ -44,24 +44,36 @@ class HoldService
             } else {
                 $startAt = Carbon::parse($data['start_at']);
                 $endAt = Carbon::parse($data['end_at']);
-                $durationMinutes = $startAt->diffInMinutes($endAt);
 
-                $slots = $this->availabilityService->getAvailableSlots(
-                    $data['studio_id'],
-                    $startAt->toDateString(),
-                    $durationMinutes,
-                    $data['guest_count'] ?? null,
-                    $data['equipment_ids'] ?? null,
-                    $data['hospitality_ids'] ?? null,
-                );
+                if (! empty($data['skip_duration_limits']) || ! empty($data['package_id'])) {
+                    $this->availabilityService->validateSlot(
+                        (int) $data['studio_id'],
+                        $startAt,
+                        $endAt,
+                        (int) ($data['guest_count'] ?? 1),
+                        null,
+                        false,
+                    );
+                } else {
+                    $durationMinutes = $startAt->diffInMinutes($endAt);
 
-                $isAvailable = collect($slots)->contains(function (array $slot) use ($startAt, $endAt) {
-                    return Carbon::parse($slot['start_at'])->equalTo($startAt)
-                        && Carbon::parse($slot['end_at'])->equalTo($endAt);
-                });
+                    $slots = $this->availabilityService->getAvailableSlots(
+                        $data['studio_id'],
+                        $startAt->toDateString(),
+                        $durationMinutes,
+                        $data['guest_count'] ?? null,
+                        $data['equipment_ids'] ?? null,
+                        $data['hospitality_ids'] ?? null,
+                    );
 
-                if (! $isAvailable) {
-                    throw new BusinessException('Selected slot is no longer available.', 'slot_unavailable');
+                    $isAvailable = collect($slots)->contains(function (array $slot) use ($startAt, $endAt) {
+                        return Carbon::parse($slot['start_at'])->equalTo($startAt)
+                            && Carbon::parse($slot['end_at'])->equalTo($endAt);
+                    });
+
+                    if (! $isAvailable) {
+                        throw new BusinessException('Selected slot is no longer available.', 'slot_unavailable');
+                    }
                 }
             }
 

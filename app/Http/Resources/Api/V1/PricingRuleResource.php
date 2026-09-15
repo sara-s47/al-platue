@@ -20,17 +20,19 @@ class PricingRuleResource extends JsonResource
         return [
             'id' => $this->id,
             'studio_id' => $this->studio_id,
+            'studio_name' => $this->when(
+                $this->relationLoaded('studio'),
+                fn () => $this->studio?->name,
+            ),
             'rule_type' => $this->rule_type,
             'day_of_week' => $this->day_of_week,
             'start_time' => $this->start_time,
             'end_time' => $this->end_time,
             'specific_date' => $specificDate,
-            'hourly_rate' => $this->price_per_hour,
             'price_per_hour' => $this->price_per_hour,
+            'hourly_rate' => $this->price_per_hour,
             'price_per_day' => $this->price_per_day,
             'priority' => $this->priority,
-            'start_date' => $specificDate,
-            'end_date' => null,
             'is_active' => $this->is_active,
         ];
     }

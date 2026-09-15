@@ -26,7 +26,9 @@ class QuoteRequest extends FormRequest
                 'date',
             ],
             'end_at' => [
-                Rule::requiredIf($mode !== BookingMode::Daily->value),
+                Rule::requiredIf(
+                    $mode !== BookingMode::Daily->value && ! $this->filled('package_id')
+                ),
                 'nullable',
                 'date',
                 'after:start_at',

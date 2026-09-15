@@ -10,6 +10,7 @@ use App\Repositories\Contracts\BookingHoldRepositoryInterface;
 use App\Repositories\Contracts\BookingRepositoryInterface;
 use App\Services\Content\AppSettingsService;
 use App\Services\Inventory\InventoryService;
+use App\Services\Inventory\PackageService;
 use App\Services\Loyalty\LoyaltyService;
 use App\Services\Pricing\PricingService;
 use App\Services\Promotion\PromoCodeService;
@@ -27,6 +28,7 @@ class BookingService
         protected BookingHoldRepositoryInterface $bookingHoldRepository,
         protected PricingService $pricingService,
         protected InventoryService $inventoryService,
+        protected PackageService $packageService,
         protected AvailabilityService $availabilityService,
         protected HoldService $holdService,
         protected PromoCodeService $promoCodeService,
@@ -84,15 +86,31 @@ class BookingService
                 throw new BusinessException('start_at and end_at are required for hourly bookings.', 'hourly_times_required');
             }
 
+            if ($packageId !== null) {
+                $package = $this->packageService->findOrFail($packageId);
+                $endAt = $startAt->copy()->addMinutes((int) $package->duration_minutes);
+            }
+
             $this->availabilityService->validateSlot(
                 $studioId,
                 $startAt,
                 $endAt,
                 $guestCount,
                 null,
-                true,
+                $packageId === null,
                 $excludeHoldId,
             );
+        }
+
+        if ($packageId !== null) {
+            $equipment = $this->packageService->mergeInventoryItems(
+                $equipment,
+                $this->packageService->getIncludedEquipment($packageId),
+            )['merged'];
+            $hospitality = $this->packageService->mergeInventoryItems(
+                $hospitality,
+                $this->packageService->getIncludedHospitality($packageId),
+            )['merged'];
         }
 
         $this->inventoryService->validateEquipmentAvailability($studioId, $equipment, $startAt, $endAt);
@@ -452,12 +470,19 @@ class BookingService
     {
         return collect($lineItems)
             ->where('item_type', 'equipment')
-            ->map(fn ($item) => [
-                'id' => $item['item_id'],
-                'quantity' => (int) $item['quantity'],
-                'unit_price' => $item['unit_price'],
-                'total_price' => $item['total_price'],
-            ])
+            ->groupBy('item_id')
+            ->map(function ($items, $id) {
+                $quantity = $items->sum(fn ($item) => (int) $item['quantity']);
+                $totalPrice = $items->sum(fn ($item) => (float) $item['total_price']);
+                $unitPrice = $quantity > 0 ? round($totalPrice / $quantity, 2) : 0;
+
+                return [
+                    'id' => (int) $id,
+                    'quantity' => $quantity,
+                    'unit_price' => $unitPrice,
+                    'total_price' => round($totalPrice, 2),
+                ];
+            })
             ->values()
             ->all();
     }
@@ -470,12 +495,19 @@ class BookingService
     {
         return collect($lineItems)
             ->where('item_type', 'hospitality')
-            ->map(fn ($item) => [
-                'id' => $item['item_id'],
-                'quantity' => (int) $item['quantity'],
-                'unit_price' => $item['unit_price'],
-                'total_price' => $item['total_price'],
-            ])
+            ->groupBy('item_id')
+            ->map(function ($items, $id) {
+                $quantity = $items->sum(fn ($item) => (int) $item['quantity']);
+                $totalPrice = $items->sum(fn ($item) => (float) $item['total_price']);
+                $unitPrice = $quantity > 0 ? round($totalPrice / $quantity, 2) : 0;
+
+                return [
+                    'id' => (int) $id,
+                    'quantity' => $quantity,
+                    'unit_price' => $unitPrice,
+                    'total_price' => round($totalPrice, 2),
+                ];
+            })
             ->values()
             ->all();
     }

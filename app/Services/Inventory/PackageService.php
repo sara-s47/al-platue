@@ -32,6 +32,83 @@ class PackageService
         return $this->packageRepository->findOrFail($id);
     }
 
+    public function findWithDetails(int $id): Model
+    {
+        $package = $this->packageRepository->findOrFail($id);
+
+        return $package->load(['equipment', 'hospitalityItems']);
+    }
+
+    /**
+     * @return array<int, array{id: int, quantity: int}>
+     */
+    public function getIncludedEquipment(int $packageId): array
+    {
+        return collect($this->getPackageEquipment($packageId))
+            ->map(fn (array $row) => ['id' => (int) $row['equipment_id'], 'quantity' => (int) $row['quantity']])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<int, array{id: int, quantity: int}>
+     */
+    public function getIncludedHospitality(int $packageId): array
+    {
+        return collect($this->getPackageHospitality($packageId))
+            ->map(fn (array $row) => ['id' => (int) $row['hospitality_item_id'], 'quantity' => (int) $row['quantity']])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Merge package includes with optional extras. Client quantities are treated as total desired.
+     *
+     * @param  array<int, array{id: int, quantity: int}>  $requested
+     * @param  array<int, array{id: int, quantity: int}>  $included
+     * @return array{merged: array<int, array{id: int, quantity: int}>, chargeable: array<int, array{id: int, quantity: int}>, included: array<int, array{id: int, quantity: int}>}
+     */
+    public function mergeInventoryItems(array $requested, array $included): array
+    {
+        $includedById = [];
+        foreach ($included as $item) {
+            $includedById[(int) $item['id']] = (int) $item['quantity'];
+        }
+
+        $requestedById = [];
+        foreach ($requested as $item) {
+            $requestedById[(int) $item['id']] = (int) $item['quantity'];
+        }
+
+        $allIds = array_unique(array_merge(array_keys($includedById), array_keys($requestedById)));
+        $merged = [];
+        $chargeable = [];
+
+        foreach ($allIds as $id) {
+            $includeQty = $includedById[$id] ?? 0;
+            $requestQty = $requestedById[$id] ?? 0;
+            $totalQty = max($includeQty, $requestQty);
+
+            if ($totalQty > 0) {
+                $merged[] = ['id' => $id, 'quantity' => $totalQty];
+            }
+
+            $extra = max(0, $totalQty - $includeQty);
+            if ($extra > 0) {
+                $chargeable[] = ['id' => $id, 'quantity' => $extra];
+            }
+        }
+
+        return [
+            'merged' => $merged,
+            'chargeable' => $chargeable,
+            'included' => collect($includedById)
+                ->map(fn (int $qty, int $id) => ['id' => $id, 'quantity' => $qty])
+                ->values()
+                ->all(),
+        ];
+    }
+
     public function create(array $data, array $equipment = [], array $hospitality = []): Model
     {
         return DB::transaction(function () use ($data, $equipment, $hospitality) {

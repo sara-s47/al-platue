@@ -23,6 +23,11 @@ class StoreStudioRequest extends FormRequest
             'longitude' => 'nullable|numeric',
             'rules' => 'nullable|string',
             'is_active' => 'boolean',
+            'weekly_schedule' => 'nullable|array|min:1',
+            'weekly_schedule.*.day_of_week' => 'required_with:weekly_schedule|integer|between:0,6',
+            'weekly_schedule.*.open_time' => 'nullable|date_format:H:i',
+            'weekly_schedule.*.close_time' => 'nullable|date_format:H:i',
+            'weekly_schedule.*.is_closed' => 'boolean',
         ];
     }
 }

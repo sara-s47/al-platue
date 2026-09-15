@@ -12,6 +12,7 @@ class StudioService
 {
     public function __construct(
         protected StudioRepositoryInterface $studioRepository,
+        protected ScheduleService $scheduleService,
     ) {
     }
 
@@ -27,7 +28,18 @@ class StudioService
 
     public function create(array $data): Studio
     {
-        return $this->studioRepository->create($data);
+        $weeklySchedule = $data['weekly_schedule'] ?? null;
+        unset($data['weekly_schedule']);
+
+        return DB::transaction(function () use ($data, $weeklySchedule) {
+            $studio = $this->studioRepository->create($data);
+
+            if (is_array($weeklySchedule) && $weeklySchedule !== []) {
+                $this->scheduleService->setWeeklySchedule($studio->id, $weeklySchedule);
+            }
+
+            return $studio->fresh();
+        });
     }
 
     public function update(int $id, array $data): Studio

@@ -48,11 +48,19 @@ class BookingController extends Controller
         $mode = \App\Enums\BookingMode::tryFrom((string) ($data['booking_mode'] ?? 'hourly'))
             ?? \App\Enums\BookingMode::Hourly;
 
+        $startAt = isset($data['start_at']) ? Carbon::parse($data['start_at']) : null;
+        $endAt = isset($data['end_at']) ? Carbon::parse($data['end_at']) : null;
+
+        if ($mode === \App\Enums\BookingMode::Hourly && ! empty($data['package_id']) && $startAt && ! $endAt) {
+            $package = \App\Models\Package::query()->findOrFail((int) $data['package_id']);
+            $endAt = $startAt->copy()->addMinutes((int) $package->duration_minutes);
+        }
+
         $quote = $this->bookingService->createQuote(
             $request->user()->id,
             (int) $data['studio_id'],
-            isset($data['start_at']) ? Carbon::parse($data['start_at']) : null,
-            isset($data['end_at']) ? Carbon::parse($data['end_at']) : null,
+            $startAt,
+            $endAt,
             (int) $data['guest_count'],
             $data['equipment'] ?? [],
             $data['hospitality'] ?? [],
