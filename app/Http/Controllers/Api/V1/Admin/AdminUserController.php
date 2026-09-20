@@ -16,8 +16,17 @@ class AdminUserController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $p = $this->userService->paginate((int) $request->get('per_page', 15));
-        return ApiResponse::paginated($p->through(fn ($u) => new UserResource($u)));
+        $filters = array_filter([
+            'status' => $request->get('status'),
+            'search' => $request->get('search'),
+        ], fn ($value) => $value !== null && $value !== '');
+
+        $perPage = $request->has('per_page') ? (int) $request->get('per_page') : 0;
+        $p = $this->userService->paginate($perPage, $filters);
+
+        return ApiResponse::paginated(
+            $p->through(fn ($u) => (new UserResource($u))->resolve())
+        );
     }
 
     public function show(int $id): JsonResponse

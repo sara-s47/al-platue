@@ -41,6 +41,8 @@ class AuthenticationService
                 // 'status' => UserStatus::Inactive,
             ]);
 
+            $user->assignRole('customer');
+
             // TODO: temporary — phone OTP verification is disabled.
             // $this->otpService->send($user->phone);
 

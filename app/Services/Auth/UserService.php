@@ -13,9 +13,12 @@ class UserService
     ) {
     }
 
-    public function paginate(int $perPage = 15): LengthAwarePaginator
+    /**
+     * @param  array{status?: string, search?: string}  $filters
+     */
+    public function paginate(int $perPage = 15, array $filters = []): LengthAwarePaginator
     {
-        return $this->userRepository->paginate($perPage);
+        return $this->userRepository->paginateAdmin($perPage, $filters);
     }
 
     public function findOrFail(int $id): Model
