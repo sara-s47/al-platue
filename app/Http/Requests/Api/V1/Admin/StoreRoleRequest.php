@@ -14,8 +14,12 @@ class StoreRoleRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => 'required|string|max:255',
+            'name' => 'required|string|max:255|unique:roles,name',
+            'permission_ids' => 'nullable|array',
+            'permission_ids.*' => 'integer|exists:permissions,id',
+            // Legacy alias — prefer permission_ids
             'permissions' => 'nullable|array',
+            'permissions.*' => 'integer|exists:permissions,id',
         ];
     }
 }

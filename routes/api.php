@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminReviewController;
 use App\Http\Controllers\Api\V1\Admin\AdminRoleController;
 use App\Http\Controllers\Api\V1\Admin\AdminScheduleController;
 use App\Http\Controllers\Api\V1\Admin\AdminSegmentController;
+use App\Http\Controllers\Api\V1\Admin\AdminStaffController;
 use App\Http\Controllers\Api\V1\Admin\AdminStudioController;
 use App\Http\Controllers\Api\V1\Admin\AdminUserController;
 use App\Http\Controllers\Api\V1\Auth\AuthController;
@@ -82,6 +83,8 @@ Route::prefix('v1')->group(function () {
         Route::post('bookings/{id}/extend', [BookingController::class, 'extend']);
         Route::post('bookings/{id}/book-again', [BookingController::class, 'bookAgain']);
 
+        Route::post('packages/quote', [PackageController::class, 'quote']);
+        Route::post('packages/hold', [PackageController::class, 'hold']);
         Route::get('packages/{id}', [PackageController::class, 'show']);
         Route::post('bookings/{bookingId}/payments', [PaymentController::class, 'initiate']);
         Route::get('payments/{id}', [PaymentController::class, 'show']);
@@ -137,11 +140,18 @@ Route::prefix('v1')->group(function () {
         });
 
         Route::middleware('permission:schedules.manage')->prefix('studios/{studioId}/schedule')->group(function () {
+            Route::get('weekly', [AdminScheduleController::class, 'weekly']);
+            Route::get('overview', [AdminScheduleController::class, 'overview']);
+            Route::get('day', [AdminScheduleController::class, 'day']);
             Route::get('effective', [AdminScheduleController::class, 'effective']);
             Route::put('weekly', [AdminScheduleController::class, 'setWeekly']);
+            Route::get('overrides', [AdminScheduleController::class, 'listOverrides']);
             Route::post('overrides', [AdminScheduleController::class, 'createOverride']);
+            Route::put('overrides/{overrideId}', [AdminScheduleController::class, 'updateOverride']);
             Route::delete('overrides/{overrideId}', [AdminScheduleController::class, 'deleteOverride']);
+            Route::get('blocks', [AdminScheduleController::class, 'listBlocks']);
             Route::post('blocks', [AdminScheduleController::class, 'createBlock']);
+            Route::put('blocks/{blockId}', [AdminScheduleController::class, 'updateBlock']);
             Route::delete('blocks/{blockId}', [AdminScheduleController::class, 'deleteBlock']);
         });
 
@@ -153,6 +163,7 @@ Route::prefix('v1')->group(function () {
             Route::post('{id}', [AdminEquipmentController::class, 'update']);
             Route::delete('{id}', [AdminEquipmentController::class, 'destroy']);
             Route::post('{equipmentId}/assign', [AdminEquipmentController::class, 'assign']);
+            Route::get('{equipmentId}/availability', [AdminEquipmentController::class, 'availability']);
             Route::delete('{equipmentId}/studios/{studioId}', [AdminEquipmentController::class, 'unassign']);
         });
 
@@ -282,6 +293,17 @@ Route::prefix('v1')->group(function () {
             Route::post('/', [AdminRoleController::class, 'store']);
             Route::put('{id}', [AdminRoleController::class, 'update']);
             Route::delete('{id}', [AdminRoleController::class, 'destroy']);
+        });
+
+        Route::middleware('permission:roles.manage')->prefix('admins')->group(function () {
+            Route::get('/', [AdminStaffController::class, 'index']);
+            Route::post('/', [AdminStaffController::class, 'store']);
+            Route::get('{id}', [AdminStaffController::class, 'show']);
+            Route::put('{id}', [AdminStaffController::class, 'update']);
+            Route::put('{id}/roles', [AdminStaffController::class, 'syncRoles']);
+            Route::put('{id}/permissions', [AdminStaffController::class, 'syncPermissions']);
+            Route::post('{id}/permissions/give', [AdminStaffController::class, 'givePermissions']);
+            Route::post('{id}/permissions/revoke', [AdminStaffController::class, 'revokePermissions']);
         });
 
         Route::middleware('permission:settings.manage')->prefix('settings')->group(function () {

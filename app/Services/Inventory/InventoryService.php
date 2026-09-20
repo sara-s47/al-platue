@@ -39,25 +39,112 @@ class InventoryService
             $record = $this->equipmentRepository->findOrFail($equipmentId);
 
             if ($record->status !== EquipmentStatus::Active) {
-                throw new BusinessException("Equipment {$record->name} is not available.", 'equipment_unavailable');
+                throw new BusinessException(
+                    "Equipment {$record->name} is not available.",
+                    'equipment_unavailable',
+                    422,
+                    null,
+                    ['equipment_id' => $equipmentId],
+                );
             }
 
             $studioQty = $this->getStudioEquipmentQuantity($studioId, $equipmentId);
 
             if ($studioQty === null) {
-                throw new BusinessException("Equipment {$record->name} is not assigned to this studio.", 'equipment_not_eligible');
+                throw new BusinessException(
+                    "Equipment {$record->name} is not assigned to this studio.",
+                    'equipment_not_assigned',
+                    422,
+                    null,
+                    [
+                        'reason' => 'not_assigned',
+                        'equipment_id' => $equipmentId,
+                        'studio_id' => $studioId,
+                        'studio_quantity' => 0,
+                        'allocated' => 0,
+                        'available' => 0,
+                        'requested' => $requestedQty,
+                    ],
+                );
             }
 
-            $allocated = $this->getAllocatedEquipmentQuantity($equipmentId, $startAt, $endAt, $excludeBookingId);
-            $available = $studioQty - $allocated;
+            if ($studioQty === 0) {
+                throw new BusinessException(
+                    "Equipment {$record->name} has zero quantity on this studio.",
+                    'equipment_studio_qty_zero',
+                    422,
+                    null,
+                    [
+                        'reason' => 'studio_qty_zero',
+                        'equipment_id' => $equipmentId,
+                        'studio_id' => $studioId,
+                        'studio_quantity' => 0,
+                        'allocated' => 0,
+                        'available' => 0,
+                        'requested' => $requestedQty,
+                    ],
+                );
+            }
+
+            $allocated = $this->getAllocatedEquipmentQuantity($equipmentId, $startAt, $endAt, $excludeBookingId, $studioId);
+            $available = max(0, $studioQty - $allocated);
 
             if ($available < $requestedQty) {
                 throw new BusinessException(
                     "Insufficient quantity for equipment {$record->name}. Available: {$available}, requested: {$requestedQty}.",
                     'equipment_insufficient_quantity',
+                    422,
+                    null,
+                    [
+                        'reason' => $available <= 0 ? 'fully_booked' : 'insufficient_quantity',
+                        'equipment_id' => $equipmentId,
+                        'studio_id' => $studioId,
+                        'studio_quantity' => $studioQty,
+                        'allocated' => $allocated,
+                        'available' => $available,
+                        'requested' => $requestedQty,
+                    ],
                 );
             }
         }
+    }
+
+    /**
+     * Helper for admin/support: equipment availability on a studio for a time range.
+     *
+     * @return array<string, mixed>
+     */
+    public function getEquipmentAvailabilityForStudio(
+        int $studioId,
+        int $equipmentId,
+        Carbon $startAt,
+        Carbon $endAt,
+        ?int $excludeBookingId = null,
+    ): array {
+        $record = $this->equipmentRepository->findOrFail($equipmentId);
+        $studioQty = $this->getStudioEquipmentQuantity($studioId, $equipmentId);
+
+        if ($studioQty === null) {
+            return [
+                'equipment_id' => $equipmentId,
+                'name' => $record->name,
+                'reason' => 'not_assigned',
+                'studio_quantity' => 0,
+                'allocated' => 0,
+                'available' => 0,
+            ];
+        }
+
+        $allocated = $this->getAllocatedEquipmentQuantity($equipmentId, $startAt, $endAt, $excludeBookingId, $studioId);
+
+        return [
+            'equipment_id' => $equipmentId,
+            'name' => $record->name,
+            'reason' => $studioQty === 0 ? 'studio_qty_zero' : null,
+            'studio_quantity' => $studioQty,
+            'allocated' => $allocated,
+            'available' => max(0, $studioQty - $allocated),
+        ];
     }
 
     /**
@@ -95,6 +182,15 @@ class InventoryService
                 throw new BusinessException(
                     "Insufficient quantity for {$record->name}. Available: {$available}, requested: {$requestedQty}.",
                     'hospitality_insufficient_quantity',
+                    422,
+                    null,
+                    [
+                        'hospitality_item_id' => $itemId,
+                        'total_quantity' => (int) $record->quantity,
+                        'allocated' => $allocated,
+                        'available' => max(0, $available),
+                        'requested' => $requestedQty,
+                    ],
                 );
             }
         }
@@ -156,10 +252,12 @@ class InventoryService
         Carbon $startAt,
         Carbon $endAt,
         ?int $excludeBookingId,
+        ?int $studioId = null,
     ): int {
         return (int) DB::table('booking_equipment')
             ->join('bookings', 'bookings.id', '=', 'booking_equipment.booking_id')
             ->where('booking_equipment.equipment_id', $equipmentId)
+            ->when($studioId, fn ($q) => $q->where('bookings.studio_id', $studioId))
             ->whereIn('bookings.status', $this->blockingBookingStatuses())
             ->where('bookings.start_at', '<', $endAt)
             ->where('bookings.end_at', '>', $startAt)

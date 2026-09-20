@@ -180,6 +180,8 @@ class AvailabilityService
             throw new BusinessException('Selected slot is outside studio opening hours.', 'outside_opening_hours');
         }
 
+        $this->bookingHoldRepository->expirePast();
+
         $bookings = $this->bookingRepository->getOverlappingForStudio(
             $studioId,
             $startAt->toDateTimeString(),
@@ -206,10 +208,16 @@ class AvailabilityService
             $endAt->toDateTimeString(),
         );
 
-        $occupied = $this->buildOccupiedPeriods($bookings, $holds, $blocks, $buffer, $timezone);
+        $conflict = $this->findConflict($startAt, $endAt, $bookings, $holds, $blocks, $buffer, $timezone);
 
-        if (! $this->isSlotFree($startAt, $endAt, $occupied, $buffer)) {
-            throw new BusinessException('Selected slot is no longer available.', 'slot_unavailable');
+        if ($conflict !== null) {
+            throw new BusinessException(
+                'Selected slot is no longer available.',
+                $conflict['code'],
+                422,
+                null,
+                $conflict['context'],
+            );
         }
     }
 
@@ -249,7 +257,7 @@ class AvailabilityService
         $config = $this->appSettingsService->getBookingConfig();
         $timezone = $config['timezone'];
         $maxDays = $config['max_daily_booking_days'];
-        $buffer = $config['cleanup_buffer_minutes'];
+        // buffer intentionally unused for daily range locking (see conflict check below)
 
         $start = Carbon::parse($startDate, $timezone)->startOfDay();
         $end = Carbon::parse($endDate, $timezone)->startOfDay();
@@ -294,6 +302,8 @@ class AvailabilityService
         $lastDay = $days[array_key_last($days)];
         $rangeEnd = Carbon::parse($lastDay['date'].' '.$lastDay['close_time'], $timezone);
 
+        $this->bookingHoldRepository->expirePast();
+
         $bookings = $this->bookingRepository->getOverlappingForStudio(
             $studioId,
             $rangeStart->toDateTimeString(),
@@ -320,10 +330,17 @@ class AvailabilityService
             $rangeEnd->toDateTimeString(),
         );
 
-        $occupied = $this->buildOccupiedPeriods($bookings, $holds, $blocks, $buffer, $timezone);
+        // Daily ranges already lock full open→close windows; do not inflate overlaps with cleanup buffer.
+        $conflict = $this->findConflict($rangeStart, $rangeEnd, $bookings, $holds, $blocks, 0, $timezone);
 
-        if (! $this->isSlotFree($rangeStart, $rangeEnd, $occupied, $buffer)) {
-            throw new BusinessException('Selected date range is no longer available.', 'slot_unavailable');
+        if ($conflict !== null) {
+            throw new BusinessException(
+                'Selected date range is no longer available.',
+                $conflict['code'],
+                422,
+                null,
+                $conflict['context'],
+            );
         }
 
         return [
@@ -375,8 +392,84 @@ class AvailabilityService
                 'start_at' => null,
                 'end_at' => null,
                 'reason' => $e->getErrorCode(),
+                'details' => $e->getContext(),
             ];
         }
+    }
+
+    /**
+     * @return array{code: string, context: array<string, mixed>}|null
+     */
+    protected function findConflict(
+        Carbon $start,
+        Carbon $end,
+        $bookings,
+        $holds,
+        $blocks,
+        int $buffer,
+        string $timezone,
+    ): ?array {
+        $conflictingBookings = [];
+        foreach ($bookings as $booking) {
+            $periodStart = Carbon::parse($booking->start_at, $timezone)->subMinutes($buffer);
+            $periodEnd = Carbon::parse($booking->end_at, $timezone)->addMinutes($buffer);
+
+            if ($start->lt($periodEnd) && $end->gt($periodStart)) {
+                $conflictingBookings[] = (int) $booking->id;
+            }
+        }
+
+        if ($conflictingBookings !== []) {
+            return [
+                'code' => 'conflicting_bookings',
+                'context' => [
+                    'reason' => 'conflicting_bookings',
+                    'conflicting_booking_ids' => $conflictingBookings,
+                ],
+            ];
+        }
+
+        $conflictingHolds = [];
+        foreach ($holds as $hold) {
+            $periodStart = Carbon::parse($hold->start_at, $timezone);
+            $periodEnd = Carbon::parse($hold->end_at, $timezone);
+
+            if ($start->lt($periodEnd) && $end->gt($periodStart)) {
+                $conflictingHolds[] = (int) $hold->id;
+            }
+        }
+
+        if ($conflictingHolds !== []) {
+            return [
+                'code' => 'conflicting_holds',
+                'context' => [
+                    'reason' => 'conflicting_holds',
+                    'conflicting_hold_ids' => $conflictingHolds,
+                ],
+            ];
+        }
+
+        $conflictingBlocks = [];
+        foreach ($blocks as $block) {
+            $periodStart = Carbon::parse($block->start_at, $timezone);
+            $periodEnd = Carbon::parse($block->end_at, $timezone);
+
+            if ($start->lt($periodEnd) && $end->gt($periodStart)) {
+                $conflictingBlocks[] = (int) $block->id;
+            }
+        }
+
+        if ($conflictingBlocks !== []) {
+            return [
+                'code' => 'conflicting_blocks',
+                'context' => [
+                    'reason' => 'conflicting_blocks',
+                    'conflicting_block_ids' => $conflictingBlocks,
+                ],
+            ];
+        }
+
+        return null;
     }
 
     protected function buildOccupiedPeriods($bookings, $holds, $blocks, int $buffer, string $timezone): array
@@ -476,7 +569,7 @@ class AvailabilityService
             return 0;
         }
 
-        $totalAvailable = min((int) $studioEquipment->studio_quantity, (int) $studioEquipment->total_quantity);
+        $totalAvailable = (int) $studioEquipment->studio_quantity;
 
         $allocated = (int) DB::table('booking_equipment')
             ->join('bookings', 'bookings.id', '=', 'booking_equipment.booking_id')

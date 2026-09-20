@@ -11,6 +11,7 @@ class BusinessException extends Exception
         protected string $errorCode = 'business_error',
         protected int $status = 422,
         ?\Throwable $previous = null,
+        protected array $context = [],
     ) {
         parent::__construct($message, 0, $previous);
     }
@@ -23,5 +24,13 @@ class BusinessException extends Exception
     public function getStatus(): int
     {
         return $this->status;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function getContext(): array
+    {
+        return $this->context;
     }
 }

@@ -47,7 +47,7 @@ return Application::configure(basePath: dirname(__DIR__))
             if ($request->is('api/*') || $request->expectsJson()) {
                 return ApiResponse::error(
                     message: $e->getMessage(),
-                    data: ['code' => $e->getErrorCode()],
+                    data: array_merge(['code' => $e->getErrorCode()], $e->getContext()),
                     status: $e->getStatus(),
                 );
             }

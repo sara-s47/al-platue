@@ -241,9 +241,9 @@ class DemoDataSeeder extends Seeder
     protected function seedPolicies(): void
     {
         CancellationPolicy::updateOrCreate(
-            ['name' => 'Flexible (24h)'],
+            ['name' => 'Full refund (72h+)'],
             [
-                'hours_before' => 24,
+                'hours_before' => 72,
                 'refund_percentage' => 100.00,
                 'cancellation_fee' => 0,
                 'is_active' => true,
@@ -251,24 +251,30 @@ class DemoDataSeeder extends Seeder
         );
 
         CancellationPolicy::updateOrCreate(
-            ['name' => 'Standard (48h)'],
+            ['name' => 'Partial refund (48h+)'],
             [
                 'hours_before' => 48,
-                'refund_percentage' => 80.00,
+                'refund_percentage' => 50.00,
                 'cancellation_fee' => 50.00,
                 'is_active' => true,
             ],
         );
 
         CancellationPolicy::updateOrCreate(
-            ['name' => 'Strict (72h)'],
+            ['name' => 'Limited refund (24h+)'],
             [
-                'hours_before' => 72,
-                'refund_percentage' => 50.00,
+                'hours_before' => 24,
+                'refund_percentage' => 25.00,
                 'cancellation_fee' => 100.00,
                 'is_active' => true,
             ],
         );
+
+        // Soft-disable legacy demo names if present
+        CancellationPolicy::query()
+            ->whereIn('name', ['Flexible (24h)', 'Standard (48h)', 'Strict (72h)', 'Flexible (24h+)', 'Standard (48h+)', 'Strict (72h+)'])
+            ->update(['is_active' => false]);
+
 
         ReschedulePolicy::updateOrCreate(
             ['name' => 'Standard Reschedule'],

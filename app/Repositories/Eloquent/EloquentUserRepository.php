@@ -19,10 +19,10 @@ class EloquentUserRepository extends BaseRepository implements UserRepositoryInt
         return $this->model->newQuery()->with('roles')->find($id);
     }
 
-    public function findOrFail(int $id): Model
-    {
-        return $this->model->newQuery()->with('roles')->findOrFail($id);
-    }
+    // public function findOrFail(int $id): Model
+    // {
+    //     return $this->model->newQuery()->with('roles')->findOrFail($id);
+    // }
 
     public function findByPhone(string $phone): ?User
     {
@@ -59,5 +59,19 @@ class EloquentUserRepository extends BaseRepository implements UserRepositoryInt
         }
 
         return $query->paginate($perPage);
+    }
+
+    public function paginate(int $perPage = 15, array $columns = ['*']): LengthAwarePaginator
+    {
+        return $this->model->newQuery()
+            ->role('customer')
+            ->with('roles')
+            ->orderByDesc('id')
+            ->paginate($perPage, $columns);
+    }
+
+    public function findOrFail(int $id): Model
+    {
+        return $this->model->newQuery()->with('roles')->findOrFail($id);
     }
 }

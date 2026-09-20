@@ -1,0 +1,11 @@
+* [33mb2ca60e[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m)[m fix(users): return only customer accounts in admin index and backfill users without a role
+[31m|[m * [33m7e40dd3[m[33m ([m[1;31morigin/master[m[33m)[m feat(admin): manage staff admins and assign role permissions by id
+[31m|[m * [33md262e0f[m deleted docs folder
+[31m|[m * [33mf336908[m fix(admin): clarify pricing/schedules, harden packages, and fix booking availability bugs
+[31m|[m[31m/[m  
+* [33m15bddd9[m feat(booking): add daily multi-day studio bookings with per-day pricing
+* [33m91569f7[m fix(api): return full public storage URLs for image paths
+* [33md5b1ce3[m chore(auth): temporarily skip phone OTP so users can log in after register
+* [33m7f4e928[m fix(auth): require password confirmation on user registration
+* [33md922436[m deleted docs folder
+* [33m7f3d4e1[m feat(notifications): add admin categories and audience targeting presets

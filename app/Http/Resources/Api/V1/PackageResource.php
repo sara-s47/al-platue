@@ -19,6 +19,22 @@ class PackageResource extends JsonResource
             'is_active' => $this->is_active,
             'valid_from' => $this->valid_from,
             'valid_to' => $this->valid_to,
+            'equipment' => $this->whenLoaded('equipment', function () {
+                return $this->equipment->map(fn ($item) => [
+                    'id' => $item->id,
+                    'name' => $item->name,
+                    'quantity' => (int) $item->pivot->quantity,
+                    'price' => $item->price,
+                ])->values();
+            }),
+            'hospitality' => $this->whenLoaded('hospitalityItems', function () {
+                return $this->hospitalityItems->map(fn ($item) => [
+                    'id' => $item->id,
+                    'name' => $item->name,
+                    'quantity' => (int) $item->pivot->quantity,
+                    'price' => $item->price,
+                ])->values();
+            }),
         ];
     }
 }

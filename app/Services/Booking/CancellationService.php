@@ -4,28 +4,39 @@ namespace App\Services\Booking;
 
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 class CancellationService
 {
-    public function __construct()
-    {
-    }
-
     /**
-     * @return array{refund_amount: float, refund_percentage: float, cancellation_fee: float, policy_id: int|null}
+     * Pick the strictest (highest hours_before) policy the customer still qualifies for.
+     *
+     * Example tiers: 72h→100%, 48h→50%, 24h→25%. Cancelling with 60h notice matches 48h.
+     *
+     * @return array{refund_amount: float, refund_percentage: float, cancellation_fee: float, policy_id: int|null, hours_until_start: float}
      */
     public function calculateRefund(Model $booking): array
     {
-        $hoursUntilStart = Carbon::now()->diffInHours(Carbon::parse($booking->start_at), false);
+        $hoursUntilStart = Carbon::now()->floatDiffInHours(Carbon::parse($booking->start_at), false);
         $paidAmount = (float) $booking->paid_amount;
         $totalAmount = (float) $booking->total_amount;
 
-        $policies = \Illuminate\Support\Facades\DB::table('cancellation_policies')
-            ->where('is_active', true)
-            ->orderByDesc('hours_before')
-            ->get();
+        if ($hoursUntilStart < 0) {
+            return [
+                'refund_amount' => 0,
+                'refund_percentage' => 0,
+                'cancellation_fee' => $totalAmount,
+                'policy_id' => null,
+                'hours_until_start' => round($hoursUntilStart, 2),
+            ];
+        }
 
-        $applicable = $policies->first(fn ($policy) => $hoursUntilStart >= (int) $policy->hours_before);
+        $applicable = DB::table('cancellation_policies')
+            ->where('is_active', true)
+            ->where('hours_before', '<=', $hoursUntilStart)
+            ->orderByDesc('hours_before')
+            ->orderByDesc('refund_percentage')
+            ->first();
 
         if (! $applicable) {
             return [
@@ -33,6 +44,7 @@ class CancellationService
                 'refund_percentage' => 0,
                 'cancellation_fee' => $totalAmount,
                 'policy_id' => null,
+                'hours_until_start' => round($hoursUntilStart, 2),
             ];
         }
 
@@ -45,6 +57,7 @@ class CancellationService
             'refund_percentage' => $refundPercentage,
             'cancellation_fee' => $cancellationFee,
             'policy_id' => (int) $applicable->id,
+            'hours_until_start' => round($hoursUntilStart, 2),
         ];
     }
 }
