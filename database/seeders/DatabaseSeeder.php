@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
             RolePermissionSeeder::class,
             AppSettingsSeeder::class,
             DemoDataSeeder::class,
+            BookingAvailabilitySeeder::class,
             AdminUserSeeder::class,
         ]);
     }
