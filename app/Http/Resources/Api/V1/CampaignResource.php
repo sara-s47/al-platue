@@ -13,8 +13,11 @@ class CampaignResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'points' => $this->points,
+            'reason' => $this->reason,
             'status' => $this->status,
             'scheduled_at' => $this->scheduled_at,
+            'created_by' => $this->created_by,
+            'created_by_name' => $this->whenLoaded('creator', fn () => $this->creator?->name),
         ];
     }
 }

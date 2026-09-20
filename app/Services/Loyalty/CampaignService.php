@@ -25,8 +25,17 @@ class CampaignService
     public function create(array $data, ?int $segmentId = null): Model
     {
         return DB::transaction(function () use ($data, $segmentId) {
+            unset($data['segment_id']);
+
+            $createdBy = $data['created_by'] ?? auth()->id();
+
+            if (! $createdBy) {
+                throw new BusinessException('Authenticated user is required.', 'unauthenticated', 401);
+            }
+
             $campaign = $this->campaignRepository->create(array_merge($data, [
                 'status' => CampaignStatus::Draft->value,
+                'created_by' => (int) $createdBy,
             ]));
 
             if ($segmentId) {
@@ -43,7 +52,7 @@ class CampaignService
                 }
             }
 
-            return $campaign->fresh();
+            return $campaign->fresh()->load('creator');
         });
     }
 

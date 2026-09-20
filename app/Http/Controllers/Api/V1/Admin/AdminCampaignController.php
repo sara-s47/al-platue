@@ -27,7 +27,9 @@ class AdminCampaignController extends Controller
     public function store(StoreCampaignRequest $request): JsonResponse
     {
         $d = $request->validated();
+        $d['created_by'] = $request->user()->id;
         $campaign = $this->campaignService->create($d, $d['segment_id'] ?? null);
+
         return ApiResponse::success(new CampaignResource($campaign), null, 201);
     }
 
