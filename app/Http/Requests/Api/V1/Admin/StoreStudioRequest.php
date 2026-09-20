@@ -2,13 +2,24 @@
 
 namespace App\Http\Requests\Api\V1\Admin;
 
+use App\Http\Requests\Concerns\NormalizesClockTimes;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreStudioRequest extends FormRequest
 {
+    use NormalizesClockTimes;
+
     public function authorize(): bool
     {
         return true;
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $this->normalizeClockTimes([
+            'weekly_schedule.*.open_time',
+            'weekly_schedule.*.close_time',
+        ]);
     }
 
     public function rules(): array

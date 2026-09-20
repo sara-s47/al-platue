@@ -2,13 +2,21 @@
 
 namespace App\Http\Requests\Api\V1\Admin;
 
+use App\Http\Requests\Concerns\NormalizesClockTimes;
 use Illuminate\Foundation\Http\FormRequest;
 
 class SetWeeklyScheduleRequest extends FormRequest
 {
+    use NormalizesClockTimes;
+
     public function authorize(): bool
     {
         return true;
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $this->normalizeClockTimes(['days.*.open_time', 'days.*.close_time']);
     }
 
     public function rules(): array

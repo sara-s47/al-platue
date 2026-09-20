@@ -316,6 +316,6 @@ class ScheduleService
             return null;
         }
 
-        return Carbon::parse($time)->format('H:i:s');
+        return Carbon::parse($time)->format('H:i');
     }
 }
