@@ -14,13 +14,9 @@ class UserResource extends JsonResource
             'name' => $this->name,
             'email' => $this->email,
             'phone' => $this->phone,
-<<<<<<< HEAD
+
             'status' => $this->status instanceof \BackedEnum ? $this->status->value : $this->status,
             'roles' => $this->roles->pluck('name')->values()->all(),
-=======
-            'status' => $this->status,
-            'roles' => $this->whenLoaded('roles', fn () => $this->roles->pluck('name')->values()),
->>>>>>> 7e40dd3b4709e71188f9dfd0849383438f291586
             'last_login_at' => $this->last_login_at,
             'created_at' => $this->created_at,
         ];

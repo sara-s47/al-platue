@@ -148,19 +148,7 @@ class PackageService
 
     public function getForStudio(int $studioId): Collection
     {
-        $today = Carbon::today();
-
-        return DB::table('packages')
-            ->where('studio_id', $studioId)
-            ->where('is_active', true)
-            ->where(function ($q) use ($today) {
-                $q->whereNull('valid_from')->orWhere('valid_from', '<=', $today);
-            })
-            ->where(function ($q) use ($today) {
-                $q->whereNull('valid_to')->orWhere('valid_to', '>=', $today);
-            })
-            ->orderBy('name')
-            ->get();
+        return $this->packageRepository->listForStudio($studioId);
     }
 
     public function validatePackageItems(int $packageId, int $studioId): void
