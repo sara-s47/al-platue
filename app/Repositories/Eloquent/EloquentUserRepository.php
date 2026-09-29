@@ -19,11 +19,6 @@ class EloquentUserRepository extends BaseRepository implements UserRepositoryInt
         return $this->model->newQuery()->with('roles')->find($id);
     }
 
-    // public function findOrFail(int $id): Model
-    // {
-    //     return $this->model->newQuery()->with('roles')->findOrFail($id);
-    // }
-
     public function findByPhone(string $phone): ?User
     {
         return $this->model->newQuery()->with('roles')->where('phone', $phone)->first();

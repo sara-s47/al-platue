@@ -12,6 +12,13 @@ class EloquentStudioRepository extends BaseRepository implements StudioRepositor
         parent::__construct($model);
     }
 
+    public function paginate(int $perPage = 15, array $columns = ['*']): \Illuminate\Contracts\Pagination\LengthAwarePaginator
+    {
+        return $this->model->newQuery()
+            ->with('images')
+            ->paginate($perPage, $columns);
+    }
+
     public function listForCustomer(array $filters = [], int $perPage = 15): \Illuminate\Contracts\Pagination\LengthAwarePaginator
     {
         $query = $this->model->newQuery()

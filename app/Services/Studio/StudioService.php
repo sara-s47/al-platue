@@ -7,6 +7,7 @@ use App\Models\StudioImage;
 use App\Repositories\Contracts\StudioRepositoryInterface;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class StudioService
 {
@@ -26,25 +27,40 @@ class StudioService
         return $this->studioRepository->findOrFail($id);
     }
 
-    public function create(array $data): Studio
+    public function create(array $data, array $imagePaths = []): Studio
     {
         $weeklySchedule = $data['weekly_schedule'] ?? null;
-        unset($data['weekly_schedule']);
+        unset($data['weekly_schedule'], $data['image'], $data['images']);
 
-        return DB::transaction(function () use ($data, $weeklySchedule) {
+        return DB::transaction(function () use ($data, $weeklySchedule, $imagePaths) {
             $studio = $this->studioRepository->create($data);
 
             if (is_array($weeklySchedule) && $weeklySchedule !== []) {
                 $this->scheduleService->setWeeklySchedule($studio->id, $weeklySchedule);
             }
 
-            return $studio->fresh();
+            $this->syncImages($studio->id, $imagePaths);
+
+            return $studio->fresh(['images']);
         });
     }
 
-    public function update(int $id, array $data): Studio
+    /**
+     * @param  list<string>|null  $imagePaths  null keeps current images; an array replaces them.
+     */
+    public function update(int $id, array $data, ?array $imagePaths = null): Studio
     {
-        return $this->studioRepository->update($id, $data);
+        unset($data['image'], $data['images'], $data['clear_images']);
+
+        return DB::transaction(function () use ($id, $data, $imagePaths) {
+            $studio = $this->studioRepository->update($id, $data);
+
+            if ($imagePaths !== null) {
+                $this->syncImages($studio->id, $imagePaths);
+            }
+
+            return $studio->fresh(['images']);
+        });
     }
 
     public function delete(int $id): bool
@@ -82,5 +98,27 @@ class StudioService
     public function listForCustomer(array $filters = [], int $perPage = 15): LengthAwarePaginator
     {
         return $this->studioRepository->listForCustomer($filters, $perPage);
+    }
+
+    /**
+     * @param  list<string>  $imagePaths
+     */
+    protected function syncImages(int $studioId, array $imagePaths): void
+    {
+        $existing = StudioImage::query()->where('studio_id', $studioId)->get();
+
+        foreach ($existing as $image) {
+            Storage::disk('public')->delete($image->path);
+        }
+
+        StudioImage::query()->where('studio_id', $studioId)->delete();
+
+        foreach (array_values($imagePaths) as $index => $path) {
+            StudioImage::query()->create([
+                'studio_id' => $studioId,
+                'path' => $path,
+                'sort_order' => $index,
+            ]);
+        }
     }
 }

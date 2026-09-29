@@ -11,6 +11,7 @@ use App\Http\Responses\ApiResponse;
 use App\Services\Studio\StudioService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 
 class AdminStudioController extends Controller
 {
@@ -24,7 +25,10 @@ class AdminStudioController extends Controller
 
     public function store(StoreStudioRequest $request): JsonResponse
     {
-        return ApiResponse::success(new StudioResource($this->studioService->create($request->validated())), null, 201);
+        $data = $request->safe()->except(['image', 'images']);
+        $paths = $this->storeUploadedImages($request);
+
+        return ApiResponse::success(new StudioResource($this->studioService->create($data, $paths)), null, 201);
     }
 
     public function show(int $id): JsonResponse
@@ -34,7 +38,16 @@ class AdminStudioController extends Controller
 
     public function update(UpdateStudioRequest $request, int $id): JsonResponse
     {
-        return ApiResponse::success(new StudioResource($this->studioService->update($id, $request->validated())));
+        $data = $request->safe()->except(['image', 'images', 'clear_images']);
+        $paths = null;
+
+        if ($request->boolean('clear_images')) {
+            $paths = [];
+        } elseif ($request->hasFile('image') || $request->hasFile('images')) {
+            $paths = $this->storeUploadedImages($request);
+        }
+
+        return ApiResponse::success(new StudioResource($this->studioService->update($id, $data, $paths)));
     }
 
     public function destroy(int $id): JsonResponse
@@ -51,5 +64,28 @@ class AdminStudioController extends Controller
     public function uploadImages(UploadStudioImagesRequest $request, int $id): JsonResponse
     {
         return ApiResponse::success(new StudioResource($this->studioService->uploadImages($id, $request->images)));
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function storeUploadedImages(Request $request): array
+    {
+        $files = [];
+
+        if ($request->hasFile('image')) {
+            $files[] = $request->file('image');
+        }
+
+        if ($request->hasFile('images')) {
+            foreach ($request->file('images') as $file) {
+                $files[] = $file;
+            }
+        }
+
+        return array_map(
+            fn (UploadedFile $file) => $file->store('studios', 'public'),
+            $files,
+        );
     }
 }
