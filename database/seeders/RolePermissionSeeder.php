@@ -47,6 +47,8 @@ class RolePermissionSeeder extends Seeder
         'settings.manage',
         'audit.view',
         'reports.view',
+        'accessories.manage',
+        'interior-designers.manage',
     ];
 
     public function run(): void

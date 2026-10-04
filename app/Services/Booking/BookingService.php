@@ -8,6 +8,7 @@ use App\Enums\BookingStatus;
 use App\Exceptions\BusinessException;
 use App\Repositories\Contracts\BookingHoldRepositoryInterface;
 use App\Repositories\Contracts\BookingRepositoryInterface;
+use App\Services\Accessory\AccessoryInventoryService;
 use App\Services\Content\AppSettingsService;
 use App\Services\Inventory\InventoryService;
 use App\Services\Inventory\PackageService;
@@ -38,12 +39,14 @@ class BookingService
         protected ExtensionService $extensionService,
         protected AppSettingsService $appSettings,
         protected BookingNumberGenerator $bookingNumberGenerator,
+        protected AccessoryInventoryService $accessoryInventory,
     ) {
     }
 
     /**
      * @param  array<int, array{id: int, quantity: int}>  $equipment
      * @param  array<int, array{id: int, quantity: int}>  $hospitality
+     * @param  array<int, array{id: int, quantity: int}>  $accessories
      * @return array<string, mixed>
      */
     public function createQuote(
@@ -61,6 +64,7 @@ class BookingService
         ?string $startDate = null,
         ?string $endDate = null,
         ?int $excludeHoldId = null,
+        array $accessories = [],
     ): array {
         $days = null;
 
@@ -115,6 +119,7 @@ class BookingService
 
         $this->inventoryService->validateEquipmentAvailability($studioId, $equipment, $startAt, $endAt);
         $this->inventoryService->validateHospitalityAvailability($studioId, $hospitality, $startAt, $endAt);
+        $this->accessoryInventory->validateAvailability($accessories, $startAt, $endAt);
 
         return $this->pricingService->calculateQuote(
             $studioId,
@@ -129,12 +134,14 @@ class BookingService
             $guestCount,
             $bookingMode,
             $days,
+            $accessories,
         );
     }
 
     /**
      * @param  array<int, array{id: int, quantity: int}>  $equipment
      * @param  array<int, array{id: int, quantity: int}>  $hospitality
+     * @param  array<int, array{id: int, quantity: int}>  $accessories
      */
     public function createFromHold(
         int $holdId,
@@ -146,6 +153,7 @@ class BookingService
         ?string $promoCode = null,
         ?int $pointsToRedeem = null,
         ?string $customerNotes = null,
+        array $accessories = [],
     ): Model {
         return DB::transaction(function () use (
             $holdId,
@@ -157,6 +165,7 @@ class BookingService
             $promoCode,
             $pointsToRedeem,
             $customerNotes,
+            $accessories,
         ) {
             $hold = $this->bookingHoldRepository->findOrFail($holdId);
 
@@ -186,6 +195,7 @@ class BookingService
                 $bookingMode === BookingMode::Daily ? $startAt->toDateString() : null,
                 $bookingMode === BookingMode::Daily ? $endAt->toDateString() : null,
                 $holdId,
+                $accessories,
             );
 
             $booking = $this->bookingRepository->create([
@@ -214,6 +224,7 @@ class BookingService
                 $this->mapEquipmentForAllocation($quote['line_items']),
                 $this->mapHospitalityForAllocation($quote['line_items']),
             );
+            $this->persistAccessories($booking->id, $studioId, $quote['line_items']);
 
             if ($promoCode && isset($quote['promo']['promo_code_id'])) {
                 $this->promoCodeService->apply(
@@ -281,6 +292,13 @@ class BookingService
             $this->inventoryService->validateHospitalityAvailability(
                 (int) $booking->studio_id,
                 $hospitality,
+                $startAt,
+                $endAt,
+                $bookingId,
+            );
+
+            $this->accessoryInventory->validateAvailability(
+                $this->getBookingAccessories($bookingId),
                 $startAt,
                 $endAt,
                 $bookingId,
@@ -358,6 +376,7 @@ class BookingService
 
             $equipment = $this->getBookingEquipment($bookingId);
             $hospitality = $this->getBookingHospitality($bookingId);
+            $accessories = $this->getBookingAccessories($bookingId);
 
             if ($bookingMode === BookingMode::Daily) {
                 $daysCount = (int) Carbon::parse($original->start_at)->startOfDay()
@@ -389,6 +408,7 @@ class BookingService
                 $equipment,
                 $hospitality,
                 $bookingMode === BookingMode::Daily ? null : $original->package_id,
+                accessories: $accessories,
             );
         });
     }
@@ -521,6 +541,44 @@ class BookingService
             ->where('booking_id', $bookingId)
             ->get()
             ->map(fn ($row) => ['id' => (int) $row->equipment_id, 'quantity' => (int) $row->quantity])
+            ->all();
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $lineItems
+     */
+    protected function persistAccessories(int $bookingId, int $studioId, array $lineItems): void
+    {
+        $now = now();
+
+        foreach ($lineItems as $item) {
+            if ($item['item_type'] !== 'accessory') {
+                continue;
+            }
+
+            DB::table('accessory_rental_items')->insert([
+                'accessory_id' => $item['item_id'],
+                'booking_id' => $bookingId,
+                'studio_id' => $studioId,
+                'quantity' => $item['quantity'],
+                'days' => $item['days'],
+                'unit_price' => $item['unit_price'],
+                'total_price' => $item['total_price'],
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }
+    }
+
+    /**
+     * @return array<int, array{id: int, quantity: int}>
+     */
+    protected function getBookingAccessories(int $bookingId): array
+    {
+        return DB::table('accessory_rental_items')
+            ->where('booking_id', $bookingId)
+            ->get()
+            ->map(fn ($row) => ['id' => (int) $row->accessory_id, 'quantity' => (int) $row->quantity])
             ->all();
     }
 

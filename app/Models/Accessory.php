@@ -1,0 +1,36 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+class Accessory extends Model
+{
+    protected $fillable = [
+        'name',
+        'description',
+        'price_per_day',
+        'quantity',
+        'is_active',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'price_per_day' => 'decimal:2',
+            'quantity' => 'integer',
+            'is_active' => 'boolean',
+        ];
+    }
+
+    public function images(): HasMany
+    {
+        return $this->hasMany(AccessoryImage::class)->orderBy('sort_order')->orderBy('id');
+    }
+
+    public function rentalItems(): HasMany
+    {
+        return $this->hasMany(AccessoryRentalItem::class);
+    }
+}

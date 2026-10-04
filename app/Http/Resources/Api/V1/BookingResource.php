@@ -28,6 +28,15 @@ class BookingResource extends JsonResource
             'remaining_amount' => $this->remaining_amount,
             'customer_notes' => $this->customer_notes,
             'studio' => new StudioResource($this->whenLoaded('studio')),
+            'accessories' => $this->whenLoaded('accessories', fn () => $this->accessories->map(fn ($item) => [
+                'id' => $item->id,
+                'accessory_id' => $item->accessory_id,
+                'name' => $item->accessory?->name,
+                'quantity' => $item->quantity,
+                'days' => $item->days,
+                'unit_price' => $item->unit_price,
+                'total_price' => $item->total_price,
+            ])->values()),
         ];
     }
 }

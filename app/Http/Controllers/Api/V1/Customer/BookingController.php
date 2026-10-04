@@ -37,7 +37,10 @@ class BookingController extends Controller
 
     public function show(Request $request, int $id): JsonResponse
     {
-        $booking = Booking::query()->where('user_id', $request->user()->id)->with('studio')->findOrFail($id);
+        $booking = Booking::query()
+            ->where('user_id', $request->user()->id)
+            ->with(['studio', 'accessories.accessory'])
+            ->findOrFail($id);
 
         return ApiResponse::success(new BookingResource($booking));
     }
@@ -70,6 +73,7 @@ class BookingController extends Controller
             $mode,
             $data['start_date'] ?? null,
             $data['end_date'] ?? null,
+            accessories: $data['accessories'] ?? [],
         );
 
         return ApiResponse::success(new QuoteResource($quote));
@@ -88,9 +92,10 @@ class BookingController extends Controller
             $data['promo_code'] ?? null,
             $data['points_to_redeem'] ?? null,
             $data['customer_notes'] ?? null,
+            $data['accessories'] ?? [],
         );
 
-        return ApiResponse::success(new BookingResource($booking->load('studio')), 'Booking created.', 201);
+        return ApiResponse::success(new BookingResource($booking->load(['studio', 'accessories.accessory'])), 'Booking created.', 201);
     }
 
     public function cancel(CancelBookingRequest $request, int $id): JsonResponse

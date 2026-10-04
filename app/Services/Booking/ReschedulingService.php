@@ -8,6 +8,7 @@ use App\Enums\BookingStatus;
 use App\Exceptions\BusinessException;
 use App\Repositories\Contracts\BookingRepositoryInterface;
 use App\Repositories\Contracts\ReschedulePolicyRepositoryInterface;
+use App\Services\Accessory\AccessoryInventoryService;
 use App\Services\Inventory\InventoryService;
 use App\Services\Pricing\PricingService;
 use App\Services\Studio\AvailabilityService;
@@ -23,6 +24,7 @@ class ReschedulingService
         protected AvailabilityService $availabilityService,
         protected InventoryService $inventoryService,
         protected PricingService $pricingService,
+        protected AccessoryInventoryService $accessoryInventory,
     ) {
     }
 
@@ -96,6 +98,13 @@ class ReschedulingService
         $this->inventoryService->validateHospitalityAvailability(
             (int) $booking->studio_id,
             $hospitality,
+            $newStartAt,
+            $newEndAt,
+            $bookingId,
+        );
+
+        $this->accessoryInventory->validateAvailability(
+            $this->getBookingAccessories($bookingId),
             $newStartAt,
             $newEndAt,
             $bookingId,
@@ -215,6 +224,18 @@ class ReschedulingService
             ->where('booking_id', $bookingId)
             ->get()
             ->map(fn ($row) => ['id' => (int) $row->equipment_id, 'quantity' => (int) $row->quantity])
+            ->all();
+    }
+
+    /**
+     * @return array<int, array{id: int, quantity: int}>
+     */
+    protected function getBookingAccessories(int $bookingId): array
+    {
+        return DB::table('accessory_rental_items')
+            ->where('booking_id', $bookingId)
+            ->get()
+            ->map(fn ($row) => ['id' => (int) $row->accessory_id, 'quantity' => (int) $row->quantity])
             ->all();
     }
 

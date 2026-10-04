@@ -50,6 +50,9 @@ class QuoteRequest extends FormRequest
             'points_to_redeem' => 'nullable|integer|min:0',
             'equipment' => 'nullable|array',
             'hospitality' => 'nullable|array',
+            'accessories' => 'nullable|array',
+            'accessories.*.id' => 'required|integer|exists:accessories,id',
+            'accessories.*.quantity' => 'required|integer|min:1',
         ];
     }
 }

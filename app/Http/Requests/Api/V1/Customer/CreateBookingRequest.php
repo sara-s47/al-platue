@@ -22,6 +22,9 @@ class CreateBookingRequest extends FormRequest
             'customer_notes' => 'nullable|string|max:1000',
             'equipment' => 'nullable|array',
             'hospitality' => 'nullable|array',
+            'accessories' => 'nullable|array',
+            'accessories.*.id' => 'required|integer|exists:accessories,id',
+            'accessories.*.quantity' => 'required|integer|min:1',
         ];
     }
 }

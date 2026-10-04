@@ -80,6 +80,11 @@ class Booking extends Model
         return $this->hasMany(BookingHospitality::class);
     }
 
+    public function accessories(): HasMany
+    {
+        return $this->hasMany(AccessoryRentalItem::class);
+    }
+
     public function priceSnapshots(): HasMany
     {
         return $this->hasMany(BookingPriceSnapshot::class);

@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Repositories\Contracts\AccessoryRentalRepositoryInterface;
+use App\Repositories\Contracts\AccessoryRepositoryInterface;
 use App\Repositories\Contracts\AppSettingRepositoryInterface;
 use App\Repositories\Contracts\AuditLogRepositoryInterface;
 use App\Repositories\Contracts\BookingHoldRepositoryInterface;
@@ -15,6 +17,7 @@ use App\Repositories\Contracts\FavoriteRepositoryInterface;
 use App\Repositories\Contracts\FirebaseDeviceRepositoryInterface;
 use App\Repositories\Contracts\HospitalityCategoryRepositoryInterface;
 use App\Repositories\Contracts\HospitalityItemRepositoryInterface;
+use App\Repositories\Contracts\InteriorDesignerRepositoryInterface;
 use App\Repositories\Contracts\LoyaltyCampaignRepositoryInterface;
 use App\Repositories\Contracts\LoyaltyRuleRepositoryInterface;
 use App\Repositories\Contracts\NotificationRepositoryInterface;
@@ -34,6 +37,8 @@ use App\Repositories\Contracts\StudioRepositoryInterface;
 use App\Repositories\Contracts\StudioScheduleOverrideRepositoryInterface;
 use App\Repositories\Contracts\StudioScheduleRepositoryInterface;
 use App\Repositories\Contracts\UserRepositoryInterface;
+use App\Repositories\Eloquent\EloquentAccessoryRentalRepository;
+use App\Repositories\Eloquent\EloquentAccessoryRepository;
 use App\Repositories\Eloquent\EloquentAppSettingRepository;
 use App\Repositories\Eloquent\EloquentAuditLogRepository;
 use App\Repositories\Eloquent\EloquentBookingHoldRepository;
@@ -47,6 +52,7 @@ use App\Repositories\Eloquent\EloquentFavoriteRepository;
 use App\Repositories\Eloquent\EloquentFirebaseDeviceRepository;
 use App\Repositories\Eloquent\EloquentHospitalityCategoryRepository;
 use App\Repositories\Eloquent\EloquentHospitalityItemRepository;
+use App\Repositories\Eloquent\EloquentInteriorDesignerRepository;
 use App\Repositories\Eloquent\EloquentLoyaltyCampaignRepository;
 use App\Repositories\Eloquent\EloquentLoyaltyRuleRepository;
 use App\Repositories\Eloquent\EloquentNotificationRepository;
@@ -108,5 +114,8 @@ class RepositoryServiceProvider extends ServiceProvider
         $this->app->bind(ContentPageRepositoryInterface::class, EloquentContentPageRepository::class);
         $this->app->bind(AppSettingRepositoryInterface::class, EloquentAppSettingRepository::class);
         $this->app->bind(AuditLogRepositoryInterface::class, EloquentAuditLogRepository::class);
+        $this->app->bind(AccessoryRepositoryInterface::class, EloquentAccessoryRepository::class);
+        $this->app->bind(AccessoryRentalRepositoryInterface::class, EloquentAccessoryRentalRepository::class);
+        $this->app->bind(InteriorDesignerRepositoryInterface::class, EloquentInteriorDesignerRepository::class);
     }
 }

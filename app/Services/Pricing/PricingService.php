@@ -10,6 +10,7 @@ use App\Repositories\Contracts\EquipmentRepositoryInterface;
 use App\Repositories\Contracts\HospitalityItemRepositoryInterface;
 use App\Repositories\Contracts\PackageRepositoryInterface;
 use App\Repositories\Contracts\PricingRuleRepositoryInterface;
+use App\Services\Accessory\AccessoryPricingService;
 use App\Services\Content\AppSettingsService;
 use App\Services\Inventory\PackageService;
 use App\Services\Loyalty\LoyaltyService;
@@ -36,6 +37,7 @@ class PricingService
         protected PromoCodeService $promoCodeService,
         protected LoyaltyService $loyaltyService,
         protected AppSettingsService $appSettings,
+        protected AccessoryPricingService $accessoryPricing,
     ) {
     }
 
@@ -43,6 +45,7 @@ class PricingService
      * @param  array<int, array{id: int, quantity: int}>  $equipment
      * @param  array<int, array{id: int, quantity: int}>  $hospitality
      * @param  list<array{date: string, open_time: string, close_time: string}>|null  $days
+     * @param  array<int, array{id: int, quantity: int}>  $accessories
      * @return array<string, mixed>
      */
     public function calculateQuote(
@@ -58,6 +61,7 @@ class PricingService
         int $guestCount = 1,
         BookingMode $bookingMode = BookingMode::Hourly,
         ?array $days = null,
+        array $accessories = [],
     ): array {
         if ($endAt->lte($startAt)) {
             throw new BusinessException('End time must be after start time.', 'invalid_time_range');
@@ -219,6 +223,16 @@ class PricingService
                 'included' => false,
             ];
             $subtotal += $total;
+        }
+
+        if ($accessories !== []) {
+            $accessoryDays = $bookingMode === BookingMode::Daily
+                ? count($days ?? [])
+                : $this->accessoryPricing->calendarDaysSpanned($startAt, $endAt);
+
+            $accessoryLines = $this->accessoryPricing->buildLines($accessories, max(1, $accessoryDays));
+            array_push($lineItems, ...$accessoryLines['lines']);
+            $subtotal += $accessoryLines['subtotal'];
         }
 
         $discountAmount = 0.0;

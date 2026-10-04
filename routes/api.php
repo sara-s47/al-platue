@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Api\V1\Admin\AdminAccessoryController;
+use App\Http\Controllers\Api\V1\Admin\AdminAccessoryRentalController;
 use App\Http\Controllers\Api\V1\Admin\AdminAppSettingController;
 use App\Http\Controllers\Api\V1\Admin\AdminAuditController;
 use App\Http\Controllers\Api\V1\Admin\AdminBookingController;
@@ -9,6 +11,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminCategoryController;
 use App\Http\Controllers\Api\V1\Admin\AdminContentController;
 use App\Http\Controllers\Api\V1\Admin\AdminEquipmentController;
 use App\Http\Controllers\Api\V1\Admin\AdminHospitalityController;
+use App\Http\Controllers\Api\V1\Admin\AdminInteriorDesignerController;
 use App\Http\Controllers\Api\V1\Admin\AdminLoyaltyController;
 use App\Http\Controllers\Api\V1\Admin\AdminNotificationController;
 use App\Http\Controllers\Api\V1\Admin\AdminPackageController;
@@ -25,6 +28,8 @@ use App\Http\Controllers\Api\V1\Admin\AdminStaffController;
 use App\Http\Controllers\Api\V1\Admin\AdminStudioController;
 use App\Http\Controllers\Api\V1\Admin\AdminUserController;
 use App\Http\Controllers\Api\V1\Auth\AuthController;
+use App\Http\Controllers\Api\V1\Customer\AccessoryController;
+use App\Http\Controllers\Api\V1\Customer\AccessoryRentalController;
 use App\Http\Controllers\Api\V1\Customer\AvailabilityController;
 use App\Http\Controllers\Api\V1\Customer\BookingController;
 use App\Http\Controllers\Api\V1\Customer\BookingHoldController;
@@ -33,6 +38,7 @@ use App\Http\Controllers\Api\V1\Customer\ContentController;
 use App\Http\Controllers\Api\V1\Customer\EquipmentController;
 use App\Http\Controllers\Api\V1\Customer\FavoriteController;
 use App\Http\Controllers\Api\V1\Customer\HospitalityController;
+use App\Http\Controllers\Api\V1\Customer\InteriorDesignerController;
 use App\Http\Controllers\Api\V1\Customer\LoyaltyController;
 use App\Http\Controllers\Api\V1\Customer\NotificationController;
 use App\Http\Controllers\Api\V1\Customer\PackageController;
@@ -88,6 +94,20 @@ Route::prefix('v1')->group(function () {
         Route::get('packages/{id}', [PackageController::class, 'show']);
         Route::post('bookings/{bookingId}/payments', [PaymentController::class, 'initiate']);
         Route::get('payments/{id}', [PaymentController::class, 'show']);
+
+        Route::get('accessories', [AccessoryController::class, 'index']);
+        Route::get('accessories/availability', [AccessoryController::class, 'availability']);
+        Route::get('accessories/{id}', [AccessoryController::class, 'show'])->whereNumber('id');
+
+        Route::post('accessory-rentals/quote', [AccessoryRentalController::class, 'quote']);
+        Route::get('accessory-rentals', [AccessoryRentalController::class, 'index']);
+        Route::post('accessory-rentals', [AccessoryRentalController::class, 'store']);
+        Route::get('accessory-rentals/{id}', [AccessoryRentalController::class, 'show'])->whereNumber('id');
+        Route::post('accessory-rentals/{id}/cancel', [AccessoryRentalController::class, 'cancel']);
+        Route::post('accessory-rentals/{id}/payments', [AccessoryRentalController::class, 'pay']);
+
+        Route::get('interior-designers', [InteriorDesignerController::class, 'index']);
+        Route::get('interior-designers/{id}', [InteriorDesignerController::class, 'show'])->whereNumber('id');
 
         Route::get('loyalty/balance', [LoyaltyController::class, 'balance']);
         Route::get('loyalty/history', [LoyaltyController::class, 'history']);
@@ -176,6 +196,32 @@ Route::prefix('v1')->group(function () {
             Route::delete('items/{id}', [AdminHospitalityController::class, 'destroyItem']);
             Route::post('items/{itemId}/studios/{studioId}', [AdminHospitalityController::class, 'assign']);
             Route::delete('items/{itemId}/studios/{studioId}', [AdminHospitalityController::class, 'unassign']);
+        });
+
+        Route::middleware('permission:accessories.manage')->prefix('accessories')->group(function () {
+            Route::get('/', [AdminAccessoryController::class, 'index']);
+            Route::post('/', [AdminAccessoryController::class, 'store']);
+            Route::get('{id}', [AdminAccessoryController::class, 'show']);
+            Route::put('{id}', [AdminAccessoryController::class, 'update']);
+            Route::post('{id}', [AdminAccessoryController::class, 'update']);
+            Route::delete('{id}', [AdminAccessoryController::class, 'destroy']);
+            Route::get('{id}/rentals', [AdminAccessoryController::class, 'rentals']);
+        });
+
+        Route::middleware('permission:accessories.manage')->prefix('accessory-rentals')->group(function () {
+            Route::get('/', [AdminAccessoryRentalController::class, 'index']);
+            Route::get('{id}', [AdminAccessoryRentalController::class, 'show']);
+            Route::post('{id}/status', [AdminAccessoryRentalController::class, 'updateStatus']);
+            Route::post('{id}/mark-paid', [AdminAccessoryRentalController::class, 'markPaid']);
+        });
+
+        Route::middleware('permission:interior-designers.manage')->prefix('interior-designers')->group(function () {
+            Route::get('/', [AdminInteriorDesignerController::class, 'index']);
+            Route::post('/', [AdminInteriorDesignerController::class, 'store']);
+            Route::get('{id}', [AdminInteriorDesignerController::class, 'show']);
+            Route::put('{id}', [AdminInteriorDesignerController::class, 'update']);
+            Route::post('{id}', [AdminInteriorDesignerController::class, 'update']);
+            Route::delete('{id}', [AdminInteriorDesignerController::class, 'destroy']);
         });
 
         Route::middleware('permission:packages.manage')->prefix('packages')->group(function () {
