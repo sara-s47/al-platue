@@ -16,7 +16,7 @@ class UpdateInteriorDesignerRequest extends FormRequest
         return [
             'name' => 'sometimes|string|max:255',
             'title' => 'sometimes|string|max:255',
-            'image' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:5120',
+            'image' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:51200',
             'remove_image' => 'sometimes|boolean',
             'portfolio_url' => 'nullable|url|max:500',
             'notes' => 'nullable|array|max:50',
