@@ -2,13 +2,21 @@
 
 namespace App\Http\Requests\Api\V1\Admin;
 
+use App\Http\Requests\Concerns\NormalizesUrls;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateInteriorDesignerRequest extends FormRequest
 {
+    use NormalizesUrls;
+
     public function authorize(): bool
     {
         return true;
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $this->normalizeUrls(['portfolio_url']);
     }
 
     public function rules(): array
