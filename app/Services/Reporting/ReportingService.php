@@ -18,7 +18,7 @@ class ReportingService
     public function revenue(?Carbon $from = null, ?Carbon $to = null, ?int $studioId = null): array
     {
         $query = DB::table('payments')
-            ->join('bookings', 'bookings.id', '=', 'payments.booking_id')
+            ->leftJoin('bookings', 'bookings.id', '=', 'payments.booking_id')
             ->where('payments.status', PaymentStatus::Paid->value);
 
         $this->applyDateRange($query, 'payments.paid_at', $from, $to);
@@ -36,10 +36,16 @@ class ReportingService
             ->groupBy('payments.type')
             ->get();
 
+        $bySource = (clone $query)
+            ->selectRaw("CASE WHEN payments.booking_id IS NOT NULL THEN 'studio_bookings' ELSE 'accessory_rentals' END as source, COUNT(*) as count, COALESCE(SUM(payments.amount), 0) as total")
+            ->groupByRaw("CASE WHEN payments.booking_id IS NOT NULL THEN 'studio_bookings' ELSE 'accessory_rentals' END")
+            ->get();
+
         return [
             'payment_count' => (int) ($totals->payment_count ?? 0),
             'total_revenue' => (float) ($totals->total_revenue ?? 0),
             'by_type' => $byType,
+            'by_source' => $bySource,
         ];
     }
 
