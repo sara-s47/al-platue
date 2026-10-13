@@ -12,9 +12,11 @@ use App\Models\AccessoryRental;
 use App\Repositories\Contracts\AccessoryRentalRepositoryInterface;
 use App\Repositories\Contracts\PaymentRepositoryInterface;
 use App\Services\Content\AppSettingsService;
+use App\Services\Notification\AdminNotificationService;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class AccessoryRentalService
 {
@@ -24,6 +26,7 @@ class AccessoryRentalService
         protected AccessoryInventoryService $inventory,
         protected AccessoryPricingService $pricing,
         protected AppSettingsService $appSettings,
+        protected AdminNotificationService $adminNotifications,
     ) {
     }
 
@@ -61,11 +64,13 @@ class AccessoryRentalService
     }
 
     /**
-     * @param  array{start_date: string, end_date: string, items: array<int, array{id: int, quantity: int}>, payment_method: string, customer_notes?: string|null}  $data
+     * Orders are cash on delivery and confirmed immediately; admins are notified in real time.
+     *
+     * @param  array{start_date: string, end_date: string, items: array<int, array{id: int, quantity: int}>, customer_notes?: string|null}  $data
      */
     public function create(int $userId, array $data, ?int $createdBy = null): AccessoryRental
     {
-        return DB::transaction(function () use ($userId, $data, $createdBy) {
+        $rental = DB::transaction(function () use ($userId, $data, $createdBy) {
             Accessory::query()
                 ->whereIn('id', array_keys($this->inventory->groupItems($data['items'])))
                 ->lockForUpdate()
@@ -80,8 +85,8 @@ class AccessoryRentalService
                 'start_date' => $quote['start_date'],
                 'end_date' => $quote['end_date'],
                 'days' => $quote['days'],
-                'status' => AccessoryRentalStatus::Pending->value,
-                'payment_method' => PaymentMethod::from($data['payment_method'])->value,
+                'status' => AccessoryRentalStatus::Confirmed->value,
+                'payment_method' => PaymentMethod::Cash->value,
                 'subtotal' => $quote['subtotal'],
                 'tax_amount' => $quote['tax_amount'],
                 'total_amount' => $quote['total_amount'],
@@ -103,6 +108,10 @@ class AccessoryRentalService
 
             return $rental->fresh(['items.accessory.images']);
         });
+
+        $this->notifyAdminsOfNewOrder($rental);
+
+        return $rental;
     }
 
     public function paginateForUser(int $userId, int $perPage = 15): LengthAwarePaginator
@@ -202,29 +211,51 @@ class AccessoryRentalService
         });
     }
 
-    /**
-     * Adds a successful payment to the rental totals and confirms it once fully paid.
-     */
     public function applyPayment(AccessoryRental $rental, float $amount): void
     {
         $paidAmount = round((float) $rental->paid_amount + $amount, 2);
-        $remainingAmount = max(0, round((float) $rental->total_amount - $paidAmount, 2));
 
-        $attributes = [
+        $rental->update([
             'paid_amount' => $paidAmount,
-            'remaining_amount' => $remainingAmount,
-        ];
+            'remaining_amount' => max(0, round((float) $rental->total_amount - $paidAmount, 2)),
+        ]);
+    }
 
-        if ($rental->status === AccessoryRentalStatus::Pending && $remainingAmount <= 0) {
-            try {
-                $this->revalidateStock($rental);
-                $attributes['status'] = AccessoryRentalStatus::Confirmed->value;
-            } catch (BusinessException) {
-                // Money is already collected; leave it pending so an admin can resolve the stock issue.
-            }
+    protected function notifyAdminsOfNewOrder(AccessoryRental $rental): void
+    {
+        try {
+            $customer = $rental->user()->first(['id', 'name', 'phone']);
+            $itemsCount = (int) $rental->items->sum('quantity');
+
+            $this->adminNotifications->notifyAdmins(
+                'accessory_rental.created',
+                'New accessories order',
+                sprintf(
+                    '%s placed order %s (%d item%s, %s EGP) from %s to %s.',
+                    $customer?->name ?? 'A customer',
+                    $rental->rental_number,
+                    $itemsCount,
+                    $itemsCount === 1 ? '' : 's',
+                    number_format((float) $rental->total_amount, 2),
+                    $rental->start_date->toDateString(),
+                    $rental->end_date->toDateString(),
+                ),
+                [
+                    'rental_id' => $rental->id,
+                    'rental_number' => $rental->rental_number,
+                    'customer_id' => $customer?->id,
+                    'customer_name' => $customer?->name,
+                    'customer_phone' => $customer?->phone,
+                    'items_count' => $itemsCount,
+                    'total_amount' => (float) $rental->total_amount,
+                    'start_date' => $rental->start_date->toDateString(),
+                    'end_date' => $rental->end_date->toDateString(),
+                ],
+                'accessories.manage',
+            );
+        } catch (Throwable $e) {
+            report($e);
         }
-
-        $rental->update($attributes);
     }
 
     protected function revalidateStock(AccessoryRental $rental): void

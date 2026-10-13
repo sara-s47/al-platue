@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminCategoryController;
 use App\Http\Controllers\Api\V1\Admin\AdminContentController;
 use App\Http\Controllers\Api\V1\Admin\AdminEquipmentController;
 use App\Http\Controllers\Api\V1\Admin\AdminHospitalityController;
+use App\Http\Controllers\Api\V1\Admin\AdminInboxController;
 use App\Http\Controllers\Api\V1\Admin\AdminInteriorDesignerController;
 use App\Http\Controllers\Api\V1\Admin\AdminLoyaltyController;
 use App\Http\Controllers\Api\V1\Admin\AdminNotificationController;
@@ -104,7 +105,6 @@ Route::prefix('v1')->group(function () {
         Route::post('accessory-rentals', [AccessoryRentalController::class, 'store']);
         Route::get('accessory-rentals/{id}', [AccessoryRentalController::class, 'show'])->whereNumber('id');
         Route::post('accessory-rentals/{id}/cancel', [AccessoryRentalController::class, 'cancel']);
-        Route::post('accessory-rentals/{id}/payments', [AccessoryRentalController::class, 'pay']);
 
         Route::get('interior-designers', [InteriorDesignerController::class, 'index']);
         Route::get('interior-designers/{id}', [InteriorDesignerController::class, 'show'])->whereNumber('id');
@@ -132,6 +132,13 @@ Route::prefix('v1')->group(function () {
     });
 
     Route::prefix('admin')->middleware(['auth:sanctum', 'active'])->group(function () {
+        Route::middleware('role:super_admin|admin|staff')->prefix('inbox')->group(function () {
+            Route::get('/', [AdminInboxController::class, 'index']);
+            Route::get('unread-count', [AdminInboxController::class, 'unreadCount']);
+            Route::post('read-all', [AdminInboxController::class, 'markAllRead']);
+            Route::post('{id}/read', [AdminInboxController::class, 'markRead'])->whereNumber('id');
+        });
+
         Route::middleware('permission:categories.manage')->prefix('categories')->group(function () {
             Route::get('/', [AdminCategoryController::class, 'index']);
             Route::post('/', [AdminCategoryController::class, 'store']);

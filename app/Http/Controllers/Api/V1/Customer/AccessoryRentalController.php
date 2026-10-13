@@ -8,17 +8,12 @@ use App\Http\Requests\Api\V1\Customer\CreateAccessoryRentalRequest;
 use App\Http\Resources\Api\V1\AccessoryRentalResource;
 use App\Http\Responses\ApiResponse;
 use App\Services\Accessory\AccessoryRentalService;
-use App\Services\Payment\PaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class AccessoryRentalController extends Controller
 {
-    public function __construct(
-        protected AccessoryRentalService $rentalService,
-        protected PaymentService $paymentService,
-    ) {
-    }
+    public function __construct(protected AccessoryRentalService $rentalService) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -51,26 +46,5 @@ class AccessoryRentalController extends Controller
         $rental = $this->rentalService->cancelByCustomer($id, $request->user()->id);
 
         return ApiResponse::success(new AccessoryRentalResource($rental), 'Rental cancelled.');
-    }
-
-    public function pay(Request $request, int $id): JsonResponse
-    {
-        $request->validate([
-            'billing_data' => 'nullable|array',
-        ]);
-
-        $user = $request->user();
-        $this->rentalService->findForUser($id, $user->id);
-
-        $billingData = array_merge(
-            array_filter([
-                'email' => $user->email,
-                'first_name' => $user->name,
-                'phone' => $user->phone,
-            ]),
-            (array) $request->input('billing_data', []),
-        );
-
-        return ApiResponse::success($this->paymentService->initiateForRental($id, $billingData), 'Payment initiated.', 201);
     }
 }

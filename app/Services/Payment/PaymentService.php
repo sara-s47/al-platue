@@ -2,9 +2,7 @@
 
 namespace App\Services\Payment;
 
-use App\Enums\AccessoryRentalStatus;
 use App\Enums\BookingStatus;
-use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Enums\PaymentType;
 use App\Exceptions\BusinessException;
@@ -56,56 +54,6 @@ class PaymentService
             $gatewayResponse = $this->paymobGateway->initiatePayment(
                 (int) round($payAmount * 100),
                 "booking-{$bookingId}-payment-{$payment->id}",
-                $billingData,
-            );
-
-            $this->paymentRepository->update($payment->id, [
-                'provider_reference' => (string) $gatewayResponse['order_id'],
-            ]);
-
-            return array_merge($gatewayResponse, [
-                'payment_id' => $payment->id,
-                'amount' => $payAmount,
-            ]);
-        });
-    }
-
-    /**
-     * Starts a Paymob payment for the remaining balance of a standalone accessory rental.
-     *
-     * @param  array<string, mixed>  $billingData
-     * @return array<string, mixed>
-     */
-    public function initiateForRental(int $rentalId, array $billingData = []): array
-    {
-        return DB::transaction(function () use ($rentalId, $billingData) {
-            $rental = AccessoryRental::query()->lockForUpdate()->findOrFail($rentalId);
-
-            if ($rental->payment_method !== PaymentMethod::Online) {
-                throw new BusinessException('This rental is paid in cash on pickup.', 'rental_not_online');
-            }
-
-            if ($rental->status === AccessoryRentalStatus::Cancelled) {
-                throw new BusinessException('Cannot pay for a cancelled rental.', 'rental_cancelled');
-            }
-
-            $payAmount = (float) $rental->remaining_amount;
-
-            if ($payAmount <= 0) {
-                throw new BusinessException('No amount due for this rental.', 'nothing_to_pay');
-            }
-
-            $payment = $this->paymentRepository->create([
-                'accessory_rental_id' => $rental->id,
-                'type' => PaymentType::Full->value,
-                'amount' => $payAmount,
-                'status' => PaymentStatus::Pending->value,
-                'provider' => 'paymob',
-            ]);
-
-            $gatewayResponse = $this->paymobGateway->initiatePayment(
-                (int) round($payAmount * 100),
-                "rental-{$rental->id}-payment-{$payment->id}",
                 $billingData,
             );
 
