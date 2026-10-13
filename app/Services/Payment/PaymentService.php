@@ -7,6 +7,7 @@ use App\Enums\PaymentStatus;
 use App\Enums\PaymentType;
 use App\Exceptions\BusinessException;
 use App\Models\AccessoryRental;
+use App\Models\Booking;
 use App\Repositories\Contracts\BookingRepositoryInterface;
 use App\Repositories\Contracts\PaymentRepositoryInterface;
 use App\Services\Accessory\AccessoryRentalService;
@@ -64,6 +65,49 @@ class PaymentService
             return array_merge($gatewayResponse, [
                 'payment_id' => $payment->id,
                 'amount' => $payAmount,
+            ]);
+        });
+    }
+
+    /**
+     * Records cash collected by an admin for a booking. Defaults to the full remaining amount.
+     */
+    public function recordCashPayment(int $bookingId, ?float $amount = null): Model
+    {
+        return DB::transaction(function () use ($bookingId, $amount) {
+            $booking = Booking::query()->lockForUpdate()->findOrFail($bookingId);
+
+            if ($booking->status === BookingStatus::Cancelled) {
+                throw new BusinessException('Cannot record a payment for a cancelled booking.', 'booking_cancelled');
+            }
+
+            $remaining = (float) $booking->remaining_amount;
+            $payAmount = round($amount ?? $remaining, 2);
+
+            if ($remaining <= 0 || $payAmount <= 0) {
+                throw new BusinessException('No amount due for this booking.', 'nothing_to_pay');
+            }
+
+            if ($payAmount > $remaining) {
+                throw new BusinessException('Amount exceeds the remaining balance.', 'amount_exceeds_remaining');
+            }
+
+            $this->paymentRepository->create([
+                'booking_id' => $booking->id,
+                'type' => ((float) $booking->paid_amount <= 0 && $payAmount >= $remaining
+                    ? PaymentType::Full
+                    : PaymentType::Balance)->value,
+                'amount' => $payAmount,
+                'status' => PaymentStatus::Paid->value,
+                'provider' => 'cash',
+                'paid_at' => now(),
+            ]);
+
+            $paidAmount = round((float) $booking->paid_amount + $payAmount, 2);
+
+            return $this->bookingRepository->update($booking->id, [
+                'paid_amount' => $paidAmount,
+                'remaining_amount' => max(0, round((float) $booking->total_amount - $paidAmount, 2)),
             ]);
         });
     }

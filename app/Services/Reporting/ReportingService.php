@@ -103,6 +103,7 @@ class ReportingService
                     BookingStatus::InProgress->value,
                     BookingStatus::Completed->value,
                     BookingStatus::Extended->value,
+                    BookingStatus::Rescheduled->value,
                 ])
                 ->where('start_at', '<', $to)
                 ->where('end_at', '>', $from)

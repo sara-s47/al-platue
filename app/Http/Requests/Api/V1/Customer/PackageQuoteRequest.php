@@ -15,6 +15,7 @@ class PackageQuoteRequest extends FormRequest
     {
         return [
             'package_id' => 'required|integer|exists:packages,id',
+            'hold_id' => 'nullable|integer',
             'start_at' => 'required|date',
             'guest_count' => 'required|integer|min:1',
             'promo_code' => 'nullable|string|max:50',

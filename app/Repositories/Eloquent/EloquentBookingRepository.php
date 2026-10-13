@@ -20,6 +20,7 @@ class EloquentBookingRepository extends BaseRepository implements BookingReposit
             BookingStatus::Confirmed->value,
             BookingStatus::InProgress->value,
             BookingStatus::Extended->value,
+            BookingStatus::Rescheduled->value,
         ];
 
         return $this->model->newQuery()

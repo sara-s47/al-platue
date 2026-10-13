@@ -147,8 +147,9 @@ class AvailabilityService
         $maxDuration = $config['maximum_booking_minutes'];
         $buffer = $config['cleanup_buffer_minutes'];
 
-        $startAt = $startAt->copy()->timezone($timezone);
-        $endAt = $endAt->copy()->timezone($timezone);
+        // Request times are studio wall-clock times (same as slots and stored values), so keep the clock and only attach the zone.
+        $startAt = $startAt->copy()->shiftTimezone($timezone);
+        $endAt = $endAt->copy()->shiftTimezone($timezone);
         $durationMinutes = (int) $startAt->diffInMinutes($endAt);
 
         if ($enforceDurationLimits) {
@@ -411,8 +412,8 @@ class AvailabilityService
     ): ?array {
         $conflictingBookings = [];
         foreach ($bookings as $booking) {
-            $periodStart = Carbon::parse($booking->start_at, $timezone)->subMinutes($buffer);
-            $periodEnd = Carbon::parse($booking->end_at, $timezone)->addMinutes($buffer);
+            $periodStart = $this->wallClock($booking->start_at, $timezone)->subMinutes($buffer);
+            $periodEnd = $this->wallClock($booking->end_at, $timezone)->addMinutes($buffer);
 
             if ($start->lt($periodEnd) && $end->gt($periodStart)) {
                 $conflictingBookings[] = (int) $booking->id;
@@ -431,8 +432,8 @@ class AvailabilityService
 
         $conflictingHolds = [];
         foreach ($holds as $hold) {
-            $periodStart = Carbon::parse($hold->start_at, $timezone);
-            $periodEnd = Carbon::parse($hold->end_at, $timezone);
+            $periodStart = $this->wallClock($hold->start_at, $timezone);
+            $periodEnd = $this->wallClock($hold->end_at, $timezone);
 
             if ($start->lt($periodEnd) && $end->gt($periodStart)) {
                 $conflictingHolds[] = (int) $hold->id;
@@ -451,8 +452,8 @@ class AvailabilityService
 
         $conflictingBlocks = [];
         foreach ($blocks as $block) {
-            $periodStart = Carbon::parse($block->start_at, $timezone);
-            $periodEnd = Carbon::parse($block->end_at, $timezone);
+            $periodStart = $this->wallClock($block->start_at, $timezone);
+            $periodEnd = $this->wallClock($block->end_at, $timezone);
 
             if ($start->lt($periodEnd) && $end->gt($periodStart)) {
                 $conflictingBlocks[] = (int) $block->id;
@@ -478,26 +479,37 @@ class AvailabilityService
 
         foreach ($bookings as $booking) {
             $periods[] = [
-                'start' => Carbon::parse($booking->start_at, $timezone)->subMinutes($buffer),
-                'end' => Carbon::parse($booking->end_at, $timezone)->addMinutes($buffer),
+                'start' => $this->wallClock($booking->start_at, $timezone)->subMinutes($buffer),
+                'end' => $this->wallClock($booking->end_at, $timezone)->addMinutes($buffer),
             ];
         }
 
         foreach ($holds as $hold) {
             $periods[] = [
-                'start' => Carbon::parse($hold->start_at, $timezone),
-                'end' => Carbon::parse($hold->end_at, $timezone),
+                'start' => $this->wallClock($hold->start_at, $timezone),
+                'end' => $this->wallClock($hold->end_at, $timezone),
             ];
         }
 
         foreach ($blocks as $block) {
             $periods[] = [
-                'start' => Carbon::parse($block->start_at, $timezone),
-                'end' => Carbon::parse($block->end_at, $timezone),
+                'start' => $this->wallClock($block->start_at, $timezone),
+                'end' => $this->wallClock($block->end_at, $timezone),
             ];
         }
 
         return $periods;
+    }
+
+    /**
+     * Stored times are studio wall-clock values; Eloquent hydrates them in the app timezone,
+     * so keep the clock reading and attach the studio timezone instead of converting.
+     */
+    protected function wallClock(mixed $value, string $timezone): Carbon
+    {
+        return $value instanceof \DateTimeInterface
+            ? Carbon::instance($value)->shiftTimezone($timezone)
+            : Carbon::parse($value, $timezone);
     }
 
     protected function isSlotFree(Carbon $start, Carbon $end, array $occupied, int $buffer): bool
@@ -575,7 +587,7 @@ class AvailabilityService
             ->join('bookings', 'bookings.id', '=', 'booking_equipment.booking_id')
             ->where('bookings.studio_id', $studioId)
             ->where('booking_equipment.equipment_id', $equipmentId)
-            ->whereIn('bookings.status', ['pending', 'confirmed', 'in_progress', 'extended'])
+            ->whereIn('bookings.status', ['pending', 'confirmed', 'in_progress', 'extended', 'rescheduled'])
             ->where('bookings.start_at', '<', $end)
             ->where('bookings.end_at', '>', $start)
             ->sum('booking_equipment.quantity');
@@ -603,7 +615,7 @@ class AvailabilityService
             ->join('bookings', 'bookings.id', '=', 'booking_hospitality.booking_id')
             ->where('bookings.studio_id', $studioId)
             ->where('booking_hospitality.hospitality_item_id', $hospitalityItemId)
-            ->whereIn('bookings.status', ['pending', 'confirmed', 'in_progress', 'extended'])
+            ->whereIn('bookings.status', ['pending', 'confirmed', 'in_progress', 'extended', 'rescheduled'])
             ->where('bookings.start_at', '<', $end)
             ->where('bookings.end_at', '>', $start)
             ->sum('booking_hospitality.quantity');

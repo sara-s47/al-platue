@@ -47,6 +47,7 @@ class ExtensionService
 
         if (! in_array($booking->status, [
             BookingStatus::Confirmed,
+            BookingStatus::Rescheduled,
             BookingStatus::InProgress,
             BookingStatus::Extended,
         ], true)) {

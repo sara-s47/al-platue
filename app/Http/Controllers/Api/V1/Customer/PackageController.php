@@ -54,6 +54,7 @@ class PackageController extends Controller
             $data['promo_code'] ?? null,
             $data['points_to_redeem'] ?? null,
             BookingMode::Hourly,
+            excludeHoldId: $this->holdService->resolveOwnHoldId($data['hold_id'] ?? null, $request->user()->id),
         );
 
         return ApiResponse::success(new QuoteResource($quote));

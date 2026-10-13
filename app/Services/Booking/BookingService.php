@@ -207,7 +207,10 @@ class BookingService
                 'start_at' => $startAt,
                 'end_at' => $endAt,
                 'guest_count' => $guestCount,
-                'status' => BookingStatus::Pending->value,
+                // Paymob is temporarily disabled: bookings are cash on delivery and confirmed on creation.
+                // Restore Pending when online payment is re-enabled (the Paymob webhook confirms on full payment).
+                // 'status' => BookingStatus::Pending->value,
+                'status' => BookingStatus::Confirmed->value,
                 'subtotal' => $quote['subtotal'],
                 'discount_amount' => $quote['discount_amount'],
                 'points_discount' => $quote['points_discount'],
@@ -449,6 +452,7 @@ class BookingService
         $allowed = [
             BookingStatus::Pending->value => [BookingStatus::Confirmed, BookingStatus::Cancelled],
             BookingStatus::Confirmed->value => [BookingStatus::InProgress, BookingStatus::Cancelled, BookingStatus::NoShow],
+            BookingStatus::Rescheduled->value => [BookingStatus::InProgress, BookingStatus::Cancelled, BookingStatus::NoShow],
             BookingStatus::InProgress->value => [BookingStatus::Completed, BookingStatus::Extended],
             BookingStatus::Extended->value => [BookingStatus::Completed],
         ];

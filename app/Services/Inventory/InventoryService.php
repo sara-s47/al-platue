@@ -291,6 +291,7 @@ class InventoryService
             BookingStatus::Confirmed->value,
             BookingStatus::InProgress->value,
             BookingStatus::Extended->value,
+            BookingStatus::Rescheduled->value,
         ];
     }
 }

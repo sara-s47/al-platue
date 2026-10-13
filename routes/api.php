@@ -49,7 +49,7 @@ use App\Http\Controllers\Api\V1\Customer\PromoCodeController;
 use App\Http\Controllers\Api\V1\Customer\ReviewController;
 use App\Http\Controllers\Api\V1\Customer\SavedSetupController;
 use App\Http\Controllers\Api\V1\Customer\StudioController;
-use App\Http\Controllers\Api\V1\Webhooks\PaymobWebhookController;
+// use App\Http\Controllers\Api\V1\Webhooks\PaymobWebhookController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -93,7 +93,8 @@ Route::prefix('v1')->group(function () {
         Route::post('packages/quote', [PackageController::class, 'quote']);
         Route::post('packages/hold', [PackageController::class, 'hold']);
         Route::get('packages/{id}', [PackageController::class, 'show']);
-        Route::post('bookings/{bookingId}/payments', [PaymentController::class, 'initiate']);
+        // Paymob is temporarily disabled; bookings are cash on delivery (admin records cash via admin/bookings/{id}/mark-paid).
+        // Route::post('bookings/{bookingId}/payments', [PaymentController::class, 'initiate']);
         Route::get('payments/{id}', [PaymentController::class, 'show']);
 
         Route::get('accessories', [AccessoryController::class, 'index']);
@@ -253,6 +254,7 @@ Route::prefix('v1')->group(function () {
             Route::post('{id}/status', [AdminBookingController::class, 'updateStatus']);
             Route::post('{id}/notes', [AdminBookingController::class, 'addNote']);
             Route::post('{id}/cancel', [AdminBookingController::class, 'cancel']);
+            Route::post('{id}/mark-paid', [AdminBookingController::class, 'markPaid']);
         });
 
         Route::middleware('permission:payments.manage')->prefix('payments')->group(function () {
@@ -365,7 +367,8 @@ Route::prefix('v1')->group(function () {
         });
     });
 
-    Route::prefix('webhooks')->group(function () {
-        Route::post('paymob', [PaymobWebhookController::class, 'handle']);
-    });
+    // Paymob is temporarily disabled (cash on delivery).
+    // Route::prefix('webhooks')->group(function () {
+    //     Route::post('paymob', [PaymobWebhookController::class, 'handle']);
+    // });
 });

@@ -481,8 +481,11 @@ class PricingService
     protected function calculateHospitalityPrice(object $item, int $quantity, int $guestCount): float
     {
         $price = (float) $item->price;
+        $pricingModel = $item->pricing_model instanceof HospitalityPricingModel
+            ? $item->pricing_model->value
+            : $item->pricing_model;
 
-        return match ($item->pricing_model) {
+        return match ($pricingModel) {
             HospitalityPricingModel::Included->value => 0,
             HospitalityPricingModel::PerPerson->value => round($price * $guestCount * $quantity, 2),
             HospitalityPricingModel::PerPackage->value => round($price * $quantity, 2),

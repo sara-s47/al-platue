@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api\V1\Customer;
 
-use App\Exceptions\BusinessException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Customer\BookAgainRequest;
 use App\Http\Requests\Api\V1\Customer\CancelBookingRequest;
@@ -15,15 +14,17 @@ use App\Http\Resources\Api\V1\QuoteResource;
 use App\Http\Responses\ApiResponse;
 use App\Services\Booking\BookingService;
 use App\Models\Booking;
-use App\Models\BookingHold;
+use App\Services\Studio\HoldService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class BookingController extends Controller
 {
-    public function __construct(protected BookingService $bookingService)
-    {
+    public function __construct(
+        protected BookingService $bookingService,
+        protected HoldService $holdService,
+    ) {
     }
 
     public function index(Request $request): JsonResponse
@@ -75,7 +76,7 @@ class BookingController extends Controller
             $mode,
             $data['start_date'] ?? null,
             $data['end_date'] ?? null,
-            $this->resolveOwnHoldId($data['hold_id'] ?? null, $request->user()->id),
+            $this->holdService->resolveOwnHoldId($data['hold_id'] ?? null, $request->user()->id),
             $data['accessories'] ?? [],
         );
 
@@ -145,26 +146,5 @@ class BookingController extends Controller
         $booking = $this->bookingService->bookAgain($id, Carbon::parse($request->start_at), $request->user()->id);
 
         return ApiResponse::success(new BookingResource($booking->load('studio')), 'Booking recreated.', 201);
-    }
-
-    /**
-     * Only the customer's own hold may be excluded from the availability check.
-     */
-    protected function resolveOwnHoldId(mixed $holdId, int $userId): ?int
-    {
-        if ($holdId === null) {
-            return null;
-        }
-
-        $owned = BookingHold::query()
-            ->whereKey((int) $holdId)
-            ->where('user_id', $userId)
-            ->exists();
-
-        if (! $owned) {
-            throw new BusinessException('Hold not found for this user.', 'hold_not_found', 404);
-        }
-
-        return (int) $holdId;
     }
 }

@@ -109,6 +109,27 @@ class HoldService
         ]);
     }
 
+    /**
+     * Only the customer's own hold may be excluded from availability checks on a quote.
+     */
+    public function resolveOwnHoldId(mixed $holdId, int $userId): ?int
+    {
+        if ($holdId === null) {
+            return null;
+        }
+
+        $owned = BookingHold::query()
+            ->whereKey((int) $holdId)
+            ->where('user_id', $userId)
+            ->exists();
+
+        if (! $owned) {
+            throw new BusinessException('Hold not found for this user.', 'hold_not_found', 404);
+        }
+
+        return (int) $holdId;
+    }
+
     public function expireHolds(): int
     {
         return $this->bookingHoldRepository->expirePast();

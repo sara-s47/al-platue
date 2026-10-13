@@ -10,12 +10,16 @@ use App\Http\Resources\Api\V1\BookingResource;
 use App\Http\Responses\ApiResponse;
 use App\Models\Booking;
 use App\Services\Booking\BookingService;
+use App\Services\Payment\PaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class AdminBookingController extends Controller
 {
-    public function __construct(protected BookingService $bookingService) {}
+    public function __construct(
+        protected BookingService $bookingService,
+        protected PaymentService $paymentService,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -44,5 +48,19 @@ class AdminBookingController extends Controller
     {
         $booking = $this->bookingService->cancel($id, $request->user()->id, $request->input('reason'));
         return ApiResponse::success(new BookingResource($booking));
+    }
+
+    public function markPaid(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'amount' => 'nullable|numeric|min:0.01',
+        ]);
+
+        $this->paymentService->recordCashPayment($id, isset($data['amount']) ? (float) $data['amount'] : null);
+
+        return ApiResponse::success(
+            new BookingResource(Booking::with(['studio', 'accessories.accessory'])->findOrFail($id)),
+            'Cash payment recorded.',
+        );
     }
 }
