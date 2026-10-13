@@ -20,6 +20,7 @@ class QuoteRequest extends FormRequest
         return [
             'booking_mode' => ['nullable', 'string', Rule::enum(BookingMode::class)],
             'studio_id' => 'required|integer|exists:studios,id',
+            'hold_id' => 'nullable|integer',
             'start_at' => [
                 Rule::requiredIf($mode !== BookingMode::Daily->value),
                 'nullable',
