@@ -13,6 +13,13 @@ class UpdateHospitalityItemRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('studios')) {
+            $this->merge(['studios' => StoreHospitalityItemRequest::normalizeStudioIds($this->input('studios'))]);
+        }
+    }
+
     public function rules(): array
     {
         return [
@@ -23,6 +30,9 @@ class UpdateHospitalityItemRequest extends FormRequest
             'price' => 'sometimes|numeric|min:0',
             'quantity' => 'sometimes|integer|min:0',
             'is_active' => 'boolean',
+            'studios' => 'sometimes|nullable|array',
+            'studios.*' => 'integer|distinct|exists:studios,id',
+            'clear_studios' => 'sometimes|boolean',
         ];
     }
 }

@@ -34,12 +34,25 @@ class AdminHospitalityController extends Controller
 
     public function storeItem(StoreHospitalityItemRequest $request): JsonResponse
     {
-        return ApiResponse::success(new HospitalityItemResource($this->hospitalityService->createItem($request->validated())), null, 201);
+        $studios = $request->has('studios') ? ($request->validated('studios') ?? []) : null;
+        $item = $this->hospitalityService->createItem($request->safe()->except(['studios']), $studios);
+
+        return ApiResponse::success(new HospitalityItemResource($item), null, 201);
     }
 
     public function updateItem(UpdateHospitalityItemRequest $request, int $id): JsonResponse
     {
-        return ApiResponse::success(new HospitalityItemResource($this->hospitalityService->updateItem($id, $request->validated())));
+        $studios = null;
+
+        if ($request->boolean('clear_studios')) {
+            $studios = [];
+        } elseif ($request->has('studios')) {
+            $studios = $request->validated('studios') ?? [];
+        }
+
+        $item = $this->hospitalityService->updateItem($id, $request->safe()->except(['studios', 'clear_studios']), $studios);
+
+        return ApiResponse::success(new HospitalityItemResource($item));
     }
 
     public function destroyItem(int $id): JsonResponse

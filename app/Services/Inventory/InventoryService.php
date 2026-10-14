@@ -205,29 +205,74 @@ class InventoryService
                 throw new BusinessException("Hospitality item {$record->name} is not available.", 'hospitality_unavailable');
             }
 
-            if (! $this->isHospitalityAssignedToStudio($studioId, $itemId)) {
-                throw new BusinessException("Hospitality item {$record->name} is not available at this studio.", 'hospitality_not_eligible');
+            $stock = $this->getHospitalityStock($studioId, $itemId, (int) $record->quantity, $startAt, $endAt, $excludeBookingId);
+
+            if ($stock['reason'] === 'not_assigned') {
+                throw new BusinessException(
+                    "Hospitality item {$record->name} is not available at this studio.",
+                    'hospitality_not_eligible',
+                    422,
+                    null,
+                    ['reason' => 'not_assigned', 'hospitality_item_id' => $itemId, 'studio_id' => $studioId],
+                );
             }
 
-            $allocated = $this->getAllocatedHospitalityQuantity($itemId, $startAt, $endAt, $excludeBookingId);
-            $available = (int) $record->quantity - $allocated;
-
-            if ($available < $requestedQty) {
+            if ($stock['available'] < $requestedQty) {
                 throw new BusinessException(
-                    "Insufficient quantity for {$record->name}. Available: {$available}, requested: {$requestedQty}.",
+                    "Insufficient quantity for {$record->name}. Available: {$stock['available']}, requested: {$requestedQty}.",
                     'hospitality_insufficient_quantity',
                     422,
                     null,
                     [
+                        'reason' => $stock['available'] <= 0 ? 'fully_booked' : 'insufficient_quantity',
                         'hospitality_item_id' => $itemId,
-                        'total_quantity' => (int) $record->quantity,
-                        'allocated' => $allocated,
-                        'available' => max(0, $available),
+                        'studio_id' => $studioId,
+                        'scope' => $stock['scope'],
+                        'total_quantity' => $stock['quantity'],
+                        'allocated' => $stock['allocated'],
+                        'available' => $stock['available'],
                         'requested' => $requestedQty,
                     ],
                 );
             }
         }
+    }
+
+    /**
+     * Items without studio links are offered in every studio; linked items only in their studios.
+     * Each studio can use the item's full quantity, so only bookings in the same studio reduce it.
+     *
+     * @return array{scope: string, reason: string|null, quantity: int, allocated: int, available: int}
+     */
+    public function getHospitalityStock(
+        int $studioId,
+        int $itemId,
+        int $totalQuantity,
+        Carbon $startAt,
+        Carbon $endAt,
+        ?int $excludeBookingId = null,
+    ): array {
+        $linkedStudioIds = DB::table('studio_hospitality')
+            ->where('hospitality_item_id', $itemId)
+            ->pluck('studio_id')
+            ->map(fn ($id) => (int) $id);
+
+        $scope = $linkedStudioIds->isEmpty() ? 'all_studios' : 'assigned_studios';
+
+        if ($scope === 'assigned_studios' && ! $linkedStudioIds->contains($studioId)) {
+            return ['scope' => $scope, 'reason' => 'not_assigned', 'quantity' => 0, 'allocated' => 0, 'available' => 0];
+        }
+
+        $allocated = $this->getAllocatedHospitalityQuantity($itemId, $startAt, $endAt, $excludeBookingId, $studioId);
+        $available = max(0, $totalQuantity - $allocated);
+
+        return [
+            'scope' => $scope,
+            'reason' => $available <= 0 ? 'fully_booked' : null,
+            'quantity' => $totalQuantity,
+            'allocated' => $allocated,
+            'available' => $available,
+        ];
     }
 
     /**
@@ -263,14 +308,6 @@ class InventoryService
         }
     }
 
-    protected function isHospitalityAssignedToStudio(int $studioId, int $itemId): bool
-    {
-        return DB::table('studio_hospitality')
-            ->where('studio_id', $studioId)
-            ->where('hospitality_item_id', $itemId)
-            ->exists();
-    }
-
     protected function getAllocatedEquipmentQuantity(
         int $equipmentId,
         Carbon $startAt,
@@ -294,10 +331,12 @@ class InventoryService
         Carbon $startAt,
         Carbon $endAt,
         ?int $excludeBookingId,
+        int $studioId,
     ): int {
         return (int) DB::table('booking_hospitality')
             ->join('bookings', 'bookings.id', '=', 'booking_hospitality.booking_id')
             ->where('booking_hospitality.hospitality_item_id', $itemId)
+            ->where('bookings.studio_id', $studioId)
             ->whereIn('bookings.status', $this->blockingBookingStatuses())
             ->where('bookings.start_at', '<', $endAt)
             ->where('bookings.end_at', '>', $startAt)

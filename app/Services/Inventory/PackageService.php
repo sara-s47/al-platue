@@ -187,17 +187,17 @@ class PackageService
             throw new BusinessException('Package includes equipment not available at this studio.', 'package_equipment_invalid');
         }
 
-        $hospitality = DB::table('package_hospitality')
-            ->join('studio_hospitality', function ($join) use ($studioId) {
-                $join->on('studio_hospitality.hospitality_item_id', '=', 'package_hospitality.hospitality_item_id')
-                    ->where('studio_hospitality.studio_id', '=', $studioId);
-            })
+        // Hospitality items with no studio links are offered in every studio.
+        $foreignHospitality = DB::table('package_hospitality')
             ->where('package_hospitality.package_id', $packageId)
-            ->count();
+            ->whereExists(fn ($q) => $q->from('studio_hospitality')
+                ->whereColumn('studio_hospitality.hospitality_item_id', 'package_hospitality.hospitality_item_id'))
+            ->whereNotExists(fn ($q) => $q->from('studio_hospitality')
+                ->whereColumn('studio_hospitality.hospitality_item_id', 'package_hospitality.hospitality_item_id')
+                ->where('studio_hospitality.studio_id', $studioId))
+            ->exists();
 
-        $expectedHospitality = DB::table('package_hospitality')->where('package_id', $packageId)->count();
-
-        if ($hospitality !== $expectedHospitality) {
+        if ($foreignHospitality) {
             throw new BusinessException('Package includes hospitality not available at this studio.', 'package_hospitality_invalid');
         }
     }

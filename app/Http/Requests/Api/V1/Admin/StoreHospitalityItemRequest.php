@@ -13,6 +13,13 @@ class StoreHospitalityItemRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('studios')) {
+            $this->merge(['studios' => self::normalizeStudioIds($this->input('studios'))]);
+        }
+    }
+
     public function rules(): array
     {
         return [
@@ -23,6 +30,24 @@ class StoreHospitalityItemRequest extends FormRequest
             'price' => 'required|numeric|min:0',
             'quantity' => 'required|integer|min:0',
             'is_active' => 'boolean',
+            'studios' => 'sometimes|nullable|array',
+            'studios.*' => 'integer|distinct|exists:studios,id',
         ];
+    }
+
+    /**
+     * Accepts [1, 2], [{"id": 1}, {"id": 2}] or the same as a JSON string (FormData).
+     */
+    public static function normalizeStudioIds(mixed $studios): mixed
+    {
+        if (is_string($studios)) {
+            $studios = json_decode($studios, true) ?? $studios;
+        }
+
+        if (! is_array($studios)) {
+            return $studios;
+        }
+
+        return array_map(fn ($studio) => is_array($studio) ? ($studio['id'] ?? null) : $studio, array_values($studios));
     }
 }

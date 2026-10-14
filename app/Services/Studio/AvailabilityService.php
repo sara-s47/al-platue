@@ -590,29 +590,15 @@ class AvailabilityService
 
     protected function getAvailableHospitalityQuantity(int $studioId, int $hospitalityItemId, Carbon $start, Carbon $end): int
     {
-        $item = DB::table('studio_hospitality')
-            ->join('hospitality_items', 'hospitality_items.id', '=', 'studio_hospitality.hospitality_item_id')
-            ->where('studio_hospitality.studio_id', $studioId)
-            ->where('studio_hospitality.hospitality_item_id', $hospitalityItemId)
-            ->where('hospitality_items.is_active', true)
-            ->select('hospitality_items.quantity')
-            ->first();
+        $item = DB::table('hospitality_items')
+            ->where('id', $hospitalityItemId)
+            ->where('is_active', true)
+            ->first(['quantity']);
 
         if (! $item) {
             return 0;
         }
 
-        $totalAvailable = (int) $item->quantity;
-
-        $allocated = (int) DB::table('booking_hospitality')
-            ->join('bookings', 'bookings.id', '=', 'booking_hospitality.booking_id')
-            ->where('bookings.studio_id', $studioId)
-            ->where('booking_hospitality.hospitality_item_id', $hospitalityItemId)
-            ->whereIn('bookings.status', ['pending', 'confirmed', 'in_progress', 'extended', 'rescheduled'])
-            ->where('bookings.start_at', '<', $end)
-            ->where('bookings.end_at', '>', $start)
-            ->sum('booking_hospitality.quantity');
-
-        return max(0, $totalAvailable - $allocated);
+        return $this->inventoryService->getHospitalityStock($studioId, $hospitalityItemId, (int) $item->quantity, $start, $end)['available'];
     }
 }
