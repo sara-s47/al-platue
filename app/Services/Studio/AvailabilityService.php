@@ -9,6 +9,7 @@ use App\Repositories\Contracts\BookingRepositoryInterface;
 use App\Repositories\Contracts\StudioBlockRepositoryInterface;
 use App\Repositories\Contracts\StudioRepositoryInterface;
 use App\Services\Content\AppSettingsService;
+use App\Services\Inventory\InventoryService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -21,6 +22,7 @@ class AvailabilityService
         protected BookingHoldRepositoryInterface $bookingHoldRepository,
         protected StudioBlockRepositoryInterface $studioBlockRepository,
         protected AppSettingsService $appSettingsService,
+        protected InventoryService $inventoryService,
     ) {
     }
 
@@ -31,6 +33,7 @@ class AvailabilityService
         ?int $guestCount = null,
         ?array $equipmentIds = null,
         ?array $hospitalityIds = null,
+        bool $enforceDurationLimits = true,
     ): array {
         $studio = $this->studioRepository->findOrFail($studioId);
 
@@ -49,12 +52,16 @@ class AvailabilityService
         $maxDuration = $config['maximum_booking_minutes'];
         $buffer = $config['cleanup_buffer_minutes'];
 
-        if ($durationMinutes < $minDuration || $durationMinutes > $maxDuration) {
-            throw new BusinessException('Requested duration is outside allowed booking limits.', 'invalid_duration');
-        }
+        if ($enforceDurationLimits) {
+            if ($durationMinutes < $minDuration || $durationMinutes > $maxDuration) {
+                throw new BusinessException('Requested duration is outside allowed booking limits.', 'invalid_duration');
+            }
 
-        if ($durationMinutes % $interval !== 0) {
-            throw new BusinessException('Requested duration must align with booking interval.', 'invalid_duration_interval');
+            if ($durationMinutes % $interval !== 0) {
+                throw new BusinessException('Requested duration must align with booking interval.', 'invalid_duration_interval');
+            }
+        } elseif ($durationMinutes < 1) {
+            throw new BusinessException('Requested duration must be positive.', 'invalid_duration');
         }
 
         $schedule = $this->scheduleService->getEffectiveSchedule($studioId, $date);
@@ -569,30 +576,16 @@ class AvailabilityService
 
     protected function getAvailableEquipmentQuantity(int $studioId, int $equipmentId, Carbon $start, Carbon $end): int
     {
-        $studioEquipment = DB::table('studio_equipment')
-            ->join('equipment', 'equipment.id', '=', 'studio_equipment.equipment_id')
-            ->where('studio_equipment.studio_id', $studioId)
-            ->where('studio_equipment.equipment_id', $equipmentId)
-            ->where('equipment.status', EquipmentStatus::Active->value)
-            ->select('studio_equipment.quantity as studio_quantity', 'equipment.quantity as total_quantity')
-            ->first();
+        $equipment = DB::table('equipment')
+            ->where('id', $equipmentId)
+            ->where('status', EquipmentStatus::Active->value)
+            ->first(['quantity']);
 
-        if (! $studioEquipment) {
+        if (! $equipment) {
             return 0;
         }
 
-        $totalAvailable = (int) $studioEquipment->studio_quantity;
-
-        $allocated = (int) DB::table('booking_equipment')
-            ->join('bookings', 'bookings.id', '=', 'booking_equipment.booking_id')
-            ->where('bookings.studio_id', $studioId)
-            ->where('booking_equipment.equipment_id', $equipmentId)
-            ->whereIn('bookings.status', ['pending', 'confirmed', 'in_progress', 'extended', 'rescheduled'])
-            ->where('bookings.start_at', '<', $end)
-            ->where('bookings.end_at', '>', $start)
-            ->sum('booking_equipment.quantity');
-
-        return max(0, $totalAvailable - $allocated);
+        return $this->inventoryService->getEquipmentStock($studioId, $equipmentId, (int) $equipment->quantity, $start, $end)['available'];
     }
 
     protected function getAvailableHospitalityQuantity(int $studioId, int $hospitalityItemId, Carbon $start, Carbon $end): int

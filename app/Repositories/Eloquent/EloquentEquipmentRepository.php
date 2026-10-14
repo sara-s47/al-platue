@@ -27,7 +27,7 @@ class EloquentEquipmentRepository extends BaseRepository implements EquipmentRep
     public function paginate(int $perPage = 15, array $columns = ['*']): LengthAwarePaginator
     {
         return $this->model->newQuery()
-            ->with('images')
+            ->with(['images', 'studios'])
             ->orderByDesc('id')
             ->paginate($perPage, $columns);
     }

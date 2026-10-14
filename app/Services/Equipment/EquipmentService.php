@@ -7,6 +7,8 @@ use App\Exceptions\BusinessException;
 use App\Models\Equipment;
 use App\Repositories\Contracts\EquipmentRepositoryInterface;
 use App\Repositories\Contracts\StudioRepositoryInterface;
+use App\Services\Inventory\InventoryService;
+use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
@@ -17,6 +19,7 @@ class EquipmentService
     public function __construct(
         protected EquipmentRepositoryInterface $equipmentRepository,
         protected StudioRepositoryInterface $studioRepository,
+        protected InventoryService $inventoryService,
     ) {
     }
 
@@ -27,45 +30,122 @@ class EquipmentService
 
     public function findOrFail(int $id): Model
     {
-        return $this->equipmentRepository->findOrFail($id);
+        return $this->equipmentRepository->findOrFail($id)->load('studios');
     }
 
-    public function create(array $data, array $imagePaths = []): Model
+    /**
+     * @param  list<array{id: int, quantity?: int|null}>|null  $studios  null keeps links untouched; [] removes all links (shared by every studio)
+     */
+    public function create(array $data, array $imagePaths = [], ?array $studios = null): Model
     {
-        return DB::transaction(function () use ($data, $imagePaths) {
-            $equipment = $this->equipmentRepository->create($this->normalizePayload($data));
+        return DB::transaction(function () use ($data, $imagePaths, $studios) {
+            $equipment = $this->equipmentRepository->create($this->normalizePayload(['description' => null, ...$data]));
             $this->syncImages($equipment->id, $imagePaths);
 
-            return $equipment->fresh(['images']);
+            if ($studios !== null) {
+                $this->syncStudios($equipment->id, (int) $equipment->quantity, $studios);
+            }
+
+            return $equipment->fresh(['images', 'studios']);
         });
     }
 
-    public function update(int $id, array $data, ?array $imagePaths = null): Model
+    /**
+     * @param  list<array{id: int, quantity?: int|null}>|null  $studios  null keeps links untouched; [] removes all links (shared by every studio)
+     */
+    public function update(int $id, array $data, ?array $imagePaths = null, ?array $studios = null): Model
     {
-        return DB::transaction(function () use ($id, $data, $imagePaths) {
+        return DB::transaction(function () use ($id, $data, $imagePaths, $studios) {
             $equipment = $this->equipmentRepository->update($id, $this->normalizePayload($data));
 
             if ($imagePaths !== null) {
                 $this->syncImages($equipment->id, $imagePaths);
             }
 
-            return $equipment->fresh(['images']);
+            if ($studios !== null) {
+                $this->syncStudios($equipment->id, (int) $equipment->quantity, $studios);
+            } else {
+                $this->ensureLinksWithinTotal($equipment->id, (int) $equipment->quantity);
+            }
+
+            return $equipment->fresh(['images', 'studios']);
         });
     }
 
     public function delete(int $id): bool
     {
         return DB::transaction(function () use ($id) {
-            $assigned = DB::table('studio_equipment')->where('equipment_id', $id)->exists();
+            $this->equipmentRepository->findOrFail($id);
 
-            if ($assigned) {
-                throw new BusinessException('Cannot delete equipment assigned to studios.', 'equipment_in_use');
+            if (DB::table('booking_equipment')->where('equipment_id', $id)->exists()) {
+                throw new BusinessException('Cannot delete equipment used in bookings.', 'equipment_in_use');
             }
 
+            DB::table('studio_equipment')->where('equipment_id', $id)->delete();
             $this->syncImages($id, []);
 
             return $this->equipmentRepository->delete($id);
         });
+    }
+
+    /**
+     * @param  list<array{id: int, quantity?: int|null}>  $studios
+     */
+    protected function syncStudios(int $equipmentId, int $totalQuantity, array $studios): void
+    {
+        $rows = [];
+
+        foreach ($studios as $studio) {
+            $studioId = (int) $studio['id'];
+            $quantity = isset($studio['quantity']) ? (int) $studio['quantity'] : $totalQuantity;
+
+            if ($quantity < 1) {
+                throw new BusinessException('Studio quantity must be at least 1.', 'invalid_quantity');
+            }
+
+            if ($quantity > $totalQuantity) {
+                throw new BusinessException(
+                    'Studio quantity cannot exceed total equipment quantity.',
+                    'quantity_exceeds_total',
+                    422,
+                    null,
+                    ['studio_id' => $studioId, 'quantity' => $quantity, 'total_quantity' => $totalQuantity],
+                );
+            }
+
+            $rows[$studioId] = $quantity;
+        }
+
+        DB::table('studio_equipment')
+            ->where('equipment_id', $equipmentId)
+            ->whereNotIn('studio_id', array_keys($rows))
+            ->delete();
+
+        foreach ($rows as $studioId => $quantity) {
+            DB::table('studio_equipment')->updateOrInsert(
+                ['studio_id' => $studioId, 'equipment_id' => $equipmentId],
+                ['quantity' => $quantity],
+            );
+        }
+    }
+
+    protected function ensureLinksWithinTotal(int $equipmentId, int $totalQuantity): void
+    {
+        $exceeding = DB::table('studio_equipment')
+            ->where('equipment_id', $equipmentId)
+            ->where('quantity', '>', $totalQuantity)
+            ->pluck('studio_id')
+            ->all();
+
+        if ($exceeding !== []) {
+            throw new BusinessException(
+                'Studio quantity cannot exceed total equipment quantity. Update the studio quantities as well.',
+                'quantity_exceeds_total',
+                422,
+                null,
+                ['studio_ids' => $exceeding, 'total_quantity' => $totalQuantity],
+            );
+        }
     }
 
     public function assignToStudio(int $equipmentId, int $studioId, int $quantity): void
@@ -106,22 +186,43 @@ class EquipmentService
     }
 
     /**
+     * Equipment linked to the studio plus equipment with no studio links (shared by every studio).
+     * With a time window, items fully booked in that window are left out.
+     *
      * @return list<Equipment>
      */
-    public function getForStudio(int $studioId): array
+    public function getForStudio(int $studioId, ?Carbon $startAt = null, ?Carbon $endAt = null): array
     {
-        return Equipment::query()
+        $this->studioRepository->findOrFail($studioId);
+
+        $items = Equipment::query()
             ->with('images')
             ->where('status', EquipmentStatus::Active)
-            ->whereHas('studios', fn ($q) => $q->where('studios.id', $studioId))
-            ->with(['studios' => fn ($q) => $q->where('studios.id', $studioId)])
-            ->get()
-            ->each(function (Equipment $equipment) {
-                $equipment->setAttribute(
-                    'studio_quantity',
-                    $equipment->studios->first()?->pivot?->quantity,
-                );
+            ->where(function ($q) use ($studioId) {
+                $q->whereHas('studios', fn ($s) => $s->where('studios.id', $studioId))
+                    ->orWhereDoesntHave('studios');
             })
+            ->orderBy('name')
+            ->get();
+
+        if ($startAt === null || $endAt === null) {
+            return $items->all();
+        }
+
+        return $items
+            ->each(function (Equipment $equipment) use ($studioId, $startAt, $endAt) {
+                $stock = $this->inventoryService->getEquipmentStock(
+                    $studioId,
+                    (int) $equipment->id,
+                    (int) $equipment->quantity,
+                    $startAt,
+                    $endAt,
+                );
+
+                $equipment->setAttribute('available_quantity', $stock['available']);
+            })
+            ->filter(fn (Equipment $equipment) => $equipment->available_quantity > 0)
+            ->values()
             ->all();
     }
 
@@ -169,7 +270,11 @@ class EquipmentService
             }
         }
 
-        unset($data['image'], $data['images'], $data['clear_images']);
+        if (array_key_exists('description', $data) && $data['description'] === null) {
+            $data['description'] = '';
+        }
+
+        unset($data['image'], $data['images'], $data['clear_images'], $data['studios'], $data['clear_studios']);
 
         return $data;
     }

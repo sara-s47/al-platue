@@ -30,11 +30,12 @@ class AdminEquipmentController extends Controller
 
     public function store(StoreEquipmentRequest $request): JsonResponse
     {
-        $data = $request->safe()->except(['image', 'images']);
+        $data = $request->safe()->except(['image', 'images', 'studios']);
         $paths = $this->storeUploadedImages($request);
+        $studios = $request->has('studios') ? ($request->validated('studios') ?? []) : null;
 
         return ApiResponse::success(
-            new EquipmentResource($this->equipmentService->create($data, $paths)),
+            new EquipmentResource($this->equipmentService->create($data, $paths, $studios)),
             null,
             201,
         );
@@ -47,7 +48,7 @@ class AdminEquipmentController extends Controller
 
     public function update(UpdateEquipmentRequest $request, int $id): JsonResponse
     {
-        $data = $request->safe()->except(['image', 'images', 'clear_images']);
+        $data = $request->safe()->except(['image', 'images', 'clear_images', 'studios', 'clear_studios']);
         $paths = null;
 
         if ($request->boolean('clear_images')) {
@@ -56,8 +57,16 @@ class AdminEquipmentController extends Controller
             $paths = $this->storeUploadedImages($request);
         }
 
+        $studios = null;
+
+        if ($request->boolean('clear_studios')) {
+            $studios = [];
+        } elseif ($request->has('studios')) {
+            $studios = $request->validated('studios') ?? [];
+        }
+
         return ApiResponse::success(
-            new EquipmentResource($this->equipmentService->update($id, $data, $paths)),
+            new EquipmentResource($this->equipmentService->update($id, $data, $paths, $studios)),
         );
     }
 

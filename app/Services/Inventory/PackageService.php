@@ -173,17 +173,17 @@ class PackageService
             throw new BusinessException('Package has expired.', 'package_expired');
         }
 
-        $equipment = DB::table('package_equipment')
-            ->join('studio_equipment', function ($join) use ($studioId) {
-                $join->on('studio_equipment.equipment_id', '=', 'package_equipment.equipment_id')
-                    ->where('studio_equipment.studio_id', '=', $studioId);
-            })
+        // Equipment with no studio links is shared by every studio.
+        $foreignEquipment = DB::table('package_equipment')
             ->where('package_equipment.package_id', $packageId)
-            ->count();
+            ->whereExists(fn ($q) => $q->from('studio_equipment')
+                ->whereColumn('studio_equipment.equipment_id', 'package_equipment.equipment_id'))
+            ->whereNotExists(fn ($q) => $q->from('studio_equipment')
+                ->whereColumn('studio_equipment.equipment_id', 'package_equipment.equipment_id')
+                ->where('studio_equipment.studio_id', $studioId))
+            ->exists();
 
-        $expectedEquipment = DB::table('package_equipment')->where('package_id', $packageId)->count();
-
-        if ($equipment !== $expectedEquipment) {
+        if ($foreignEquipment) {
             throw new BusinessException('Package includes equipment not available at this studio.', 'package_equipment_invalid');
         }
 

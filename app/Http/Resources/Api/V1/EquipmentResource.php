@@ -31,6 +31,18 @@ class EquipmentResource extends JsonResource
             'status' => $this->status ?? null,
             'image' => $primary,
             'images' => $images,
+            'available_quantity' => $this->when(
+                array_key_exists('available_quantity', $this->resource->getAttributes()),
+                fn () => (int) $this->available_quantity,
+            ),
+            'available_in_all_studios' => $this->whenLoaded('studios', fn () => $this->studios->isEmpty()),
+            'studios' => $this->whenLoaded('studios', function () {
+                return $this->studios->map(fn ($studio) => [
+                    'id' => $studio->id,
+                    'name' => $studio->name,
+                    'quantity' => (int) $studio->pivot->quantity,
+                ])->values();
+            }),
         ];
     }
 }

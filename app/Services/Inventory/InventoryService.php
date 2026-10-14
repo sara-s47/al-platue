@@ -48,65 +48,116 @@ class InventoryService
                 );
             }
 
-            $studioQty = $this->getStudioEquipmentQuantity($studioId, $equipmentId);
+            $stock = $this->getEquipmentStock($studioId, $equipmentId, (int) $record->quantity, $startAt, $endAt, $excludeBookingId);
+            $context = [
+                'reason' => $stock['reason'],
+                'equipment_id' => $equipmentId,
+                'studio_id' => $studioId,
+                'scope' => $stock['scope'],
+                'studio_quantity' => $stock['studio_quantity'],
+                'allocated' => $stock['allocated'],
+                'available' => $stock['available'],
+                'requested' => $requestedQty,
+            ];
 
-            if ($studioQty === null) {
+            if ($stock['reason'] === 'not_assigned') {
                 throw new BusinessException(
                     "Equipment {$record->name} is not assigned to this studio.",
                     'equipment_not_assigned',
                     422,
                     null,
-                    [
-                        'reason' => 'not_assigned',
-                        'equipment_id' => $equipmentId,
-                        'studio_id' => $studioId,
-                        'studio_quantity' => 0,
-                        'allocated' => 0,
-                        'available' => 0,
-                        'requested' => $requestedQty,
-                    ],
+                    $context,
                 );
             }
 
-            if ($studioQty === 0) {
+            if ($stock['reason'] === 'studio_qty_zero') {
                 throw new BusinessException(
                     "Equipment {$record->name} has zero quantity on this studio.",
                     'equipment_studio_qty_zero',
                     422,
                     null,
-                    [
-                        'reason' => 'studio_qty_zero',
-                        'equipment_id' => $equipmentId,
-                        'studio_id' => $studioId,
-                        'studio_quantity' => 0,
-                        'allocated' => 0,
-                        'available' => 0,
-                        'requested' => $requestedQty,
-                    ],
+                    $context,
                 );
             }
 
-            $allocated = $this->getAllocatedEquipmentQuantity($equipmentId, $startAt, $endAt, $excludeBookingId, $studioId);
-            $available = max(0, $studioQty - $allocated);
+            if ($stock['available'] < $requestedQty) {
+                $context['reason'] = $stock['available'] <= 0 ? 'fully_booked' : 'insufficient_quantity';
 
-            if ($available < $requestedQty) {
                 throw new BusinessException(
-                    "Insufficient quantity for equipment {$record->name}. Available: {$available}, requested: {$requestedQty}.",
+                    "Insufficient quantity for equipment {$record->name}. Available: {$stock['available']}, requested: {$requestedQty}.",
                     'equipment_insufficient_quantity',
                     422,
                     null,
-                    [
-                        'reason' => $available <= 0 ? 'fully_booked' : 'insufficient_quantity',
-                        'equipment_id' => $equipmentId,
-                        'studio_id' => $studioId,
-                        'studio_quantity' => $studioQty,
-                        'allocated' => $allocated,
-                        'available' => $available,
-                        'requested' => $requestedQty,
-                    ],
+                    $context,
                 );
             }
         }
+    }
+
+    /**
+     * Equipment without studio links is shared by every studio and limited by its total quantity.
+     * Linked equipment is limited to its studios and their per-studio quantity.
+     * Either way, overlapping allocations across all studios can never exceed the total stock.
+     *
+     * @return array{scope: string, reason: string|null, studio_quantity: int, allocated: int, available: int}
+     */
+    public function getEquipmentStock(
+        int $studioId,
+        int $equipmentId,
+        int $totalQuantity,
+        Carbon $startAt,
+        Carbon $endAt,
+        ?int $excludeBookingId = null,
+    ): array {
+        $links = DB::table('studio_equipment')
+            ->where('equipment_id', $equipmentId)
+            ->pluck('quantity', 'studio_id');
+
+        $globalAllocated = $this->getAllocatedEquipmentQuantity($equipmentId, $startAt, $endAt, $excludeBookingId);
+        $globalFree = max(0, $totalQuantity - $globalAllocated);
+
+        if ($links->isEmpty()) {
+            return [
+                'scope' => 'all_studios',
+                'reason' => $globalFree <= 0 ? 'fully_booked' : null,
+                'studio_quantity' => $totalQuantity,
+                'allocated' => $globalAllocated,
+                'available' => $globalFree,
+            ];
+        }
+
+        if (! $links->has($studioId)) {
+            return [
+                'scope' => 'assigned_studios',
+                'reason' => 'not_assigned',
+                'studio_quantity' => 0,
+                'allocated' => 0,
+                'available' => 0,
+            ];
+        }
+
+        $studioQty = (int) $links->get($studioId);
+
+        if ($studioQty === 0) {
+            return [
+                'scope' => 'assigned_studios',
+                'reason' => 'studio_qty_zero',
+                'studio_quantity' => 0,
+                'allocated' => 0,
+                'available' => 0,
+            ];
+        }
+
+        $allocated = $this->getAllocatedEquipmentQuantity($equipmentId, $startAt, $endAt, $excludeBookingId, $studioId);
+        $available = max(0, min($studioQty - $allocated, $globalFree));
+
+        return [
+            'scope' => 'assigned_studios',
+            'reason' => $available <= 0 ? 'fully_booked' : null,
+            'studio_quantity' => $studioQty,
+            'allocated' => $allocated,
+            'available' => $available,
+        ];
     }
 
     /**
@@ -122,28 +173,11 @@ class InventoryService
         ?int $excludeBookingId = null,
     ): array {
         $record = $this->equipmentRepository->findOrFail($equipmentId);
-        $studioQty = $this->getStudioEquipmentQuantity($studioId, $equipmentId);
-
-        if ($studioQty === null) {
-            return [
-                'equipment_id' => $equipmentId,
-                'name' => $record->name,
-                'reason' => 'not_assigned',
-                'studio_quantity' => 0,
-                'allocated' => 0,
-                'available' => 0,
-            ];
-        }
-
-        $allocated = $this->getAllocatedEquipmentQuantity($equipmentId, $startAt, $endAt, $excludeBookingId, $studioId);
 
         return [
             'equipment_id' => $equipmentId,
             'name' => $record->name,
-            'reason' => $studioQty === 0 ? 'studio_qty_zero' : null,
-            'studio_quantity' => $studioQty,
-            'allocated' => $allocated,
-            'available' => max(0, $studioQty - $allocated),
+            ...$this->getEquipmentStock($studioId, $equipmentId, (int) $record->quantity, $startAt, $endAt, $excludeBookingId),
         ];
     }
 
@@ -227,16 +261,6 @@ class InventoryService
                 'updated_at' => $now,
             ]);
         }
-    }
-
-    protected function getStudioEquipmentQuantity(int $studioId, int $equipmentId): ?int
-    {
-        $row = DB::table('studio_equipment')
-            ->where('studio_id', $studioId)
-            ->where('equipment_id', $equipmentId)
-            ->first();
-
-        return $row ? (int) $row->quantity : null;
     }
 
     protected function isHospitalityAssignedToStudio(int $studioId, int $itemId): bool

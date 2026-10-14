@@ -13,6 +13,13 @@ class UpdateEquipmentRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        if (is_string($this->input('studios'))) {
+            $this->merge(['studios' => json_decode($this->input('studios'), true) ?? $this->input('studios')]);
+        }
+    }
+
     public function rules(): array
     {
         return [
@@ -25,6 +32,10 @@ class UpdateEquipmentRequest extends FormRequest
             'images' => 'nullable|array|max:5',
             'images.*' => 'image|mimes:jpeg,jpg,png,webp|max:5120',
             'clear_images' => 'sometimes|boolean',
+            'studios' => 'sometimes|nullable|array',
+            'studios.*.id' => 'required|integer|distinct|exists:studios,id',
+            'studios.*.quantity' => 'nullable|integer|min:1',
+            'clear_studios' => 'sometimes|boolean',
         ];
     }
 }

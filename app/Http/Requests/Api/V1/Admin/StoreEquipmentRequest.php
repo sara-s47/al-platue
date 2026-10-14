@@ -13,6 +13,13 @@ class StoreEquipmentRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        if (is_string($this->input('studios'))) {
+            $this->merge(['studios' => json_decode($this->input('studios'), true) ?? $this->input('studios')]);
+        }
+    }
+
     public function rules(): array
     {
         return [
@@ -24,6 +31,9 @@ class StoreEquipmentRequest extends FormRequest
             'image' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:5120',
             'images' => 'nullable|array|max:5',
             'images.*' => 'image|mimes:jpeg,jpg,png,webp|max:5120',
+            'studios' => 'sometimes|nullable|array',
+            'studios.*.id' => 'required|integer|distinct|exists:studios,id',
+            'studios.*.quantity' => 'nullable|integer|min:1',
         ];
     }
 }
