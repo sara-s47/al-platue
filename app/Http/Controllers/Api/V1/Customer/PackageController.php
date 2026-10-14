@@ -55,6 +55,7 @@ class PackageController extends Controller
             $data['points_to_redeem'] ?? null,
             BookingMode::Hourly,
             excludeHoldId: $this->holdService->resolveOwnHoldId($data['hold_id'] ?? null, $request->user()->id),
+            useMaxPoints: $request->boolean('use_points'),
         );
 
         return ApiResponse::success(new QuoteResource($quote));

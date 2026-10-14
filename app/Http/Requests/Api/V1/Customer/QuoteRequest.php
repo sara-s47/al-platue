@@ -49,6 +49,7 @@ class QuoteRequest extends FormRequest
             'package_id' => 'nullable|integer|exists:packages,id',
             'promo_code' => 'nullable|string|max:50',
             'points_to_redeem' => 'nullable|integer|min:0',
+            'use_points' => 'nullable|boolean',
             'equipment' => 'nullable|array',
             'hospitality' => 'nullable|array',
             'accessories' => 'nullable|array',

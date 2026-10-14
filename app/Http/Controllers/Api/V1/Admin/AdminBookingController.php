@@ -29,7 +29,9 @@ class AdminBookingController extends Controller
 
     public function show(int $id): JsonResponse
     {
-        return ApiResponse::success(new BookingResource(Booking::with(['studio', 'accessories.accessory'])->findOrFail($id)));
+        return ApiResponse::success(new BookingResource(
+            Booking::with(['studio', 'accessories.accessory', 'user', 'package', 'pointsTransactions'])->findOrFail($id),
+        ));
     }
 
     public function updateStatus(UpdateBookingStatusRequest $request, int $id): JsonResponse

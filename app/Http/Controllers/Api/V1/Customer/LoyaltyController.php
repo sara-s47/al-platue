@@ -16,7 +16,21 @@ class LoyaltyController extends Controller
 
     public function balance(Request $request): JsonResponse
     {
-        return ApiResponse::success(['balance' => $this->loyaltyService->getBalance($request->user()->id)]);
+        $userId = $request->user()->id;
+        $options = $this->loyaltyService->getRedemptionOptions($userId);
+
+        return ApiResponse::success([
+            'balance' => $this->loyaltyService->getBalance($userId),
+            'redemption' => [
+                'enabled' => $options['enabled'],
+                'can_redeem' => $options['can_redeem'],
+                'points_per_currency_unit' => $options['points_per_currency_unit'],
+                'min_redemption_points' => $options['min_redemption_points'],
+                'max_redemption_amount' => $options['max_redemption_amount'],
+                'max_redemption_percentage' => $options['max_redemption_percentage'],
+                'balance_value' => $options['max_discount'],
+            ],
+        ]);
     }
 
     public function history(Request $request): JsonResponse

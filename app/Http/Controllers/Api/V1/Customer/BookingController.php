@@ -42,7 +42,7 @@ class BookingController extends Controller
     {
         $booking = Booking::query()
             ->where('user_id', $request->user()->id)
-            ->with(['studio', 'accessories.accessory'])
+            ->with(['studio', 'accessories.accessory', 'pointsTransactions'])
             ->findOrFail($id);
 
         return ApiResponse::success(new BookingResource($booking));
@@ -78,6 +78,7 @@ class BookingController extends Controller
             $data['end_date'] ?? null,
             $this->holdService->resolveOwnHoldId($data['hold_id'] ?? null, $request->user()->id),
             $data['accessories'] ?? [],
+            $request->boolean('use_points'),
         );
 
         return ApiResponse::success(new QuoteResource($quote));
@@ -97,9 +98,10 @@ class BookingController extends Controller
             $data['points_to_redeem'] ?? null,
             $data['customer_notes'] ?? null,
             $data['accessories'] ?? [],
+            $request->boolean('use_points'),
         );
 
-        return ApiResponse::success(new BookingResource($booking->load(['studio', 'accessories.accessory'])), 'Booking created.', 201);
+        return ApiResponse::success(new BookingResource($booking->load(['studio', 'accessories.accessory', 'pointsTransactions'])), 'Booking created.', 201);
     }
 
     public function cancel(CancelBookingRequest $request, int $id): JsonResponse

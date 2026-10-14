@@ -103,20 +103,17 @@ class LoyaltyService
     public function redeemPoints(int $userId, int $points, int $bookingId): Model
     {
         return DB::transaction(function () use ($userId, $points, $bookingId) {
+            // Serialize redemptions per user so two concurrent bookings cannot spend the same balance.
+            DB::table('users')->where('id', $userId)->lockForUpdate()->first();
+
             $balance = $this->getBalance($userId);
             $rule = $this->getActiveRule(LoyaltyRuleType::Redemption);
 
             if (! $rule) {
-                throw new BusinessException('Redemption is not configured.', 'redemption_not_configured');
+                throw new BusinessException('Points redemption is not available right now.', 'redemption_not_configured');
             }
 
-            if ($points < (int) $rule->min_redemption_points) {
-                throw new BusinessException(
-                    "Minimum redemption is {$rule->min_redemption_points} points.",
-                    'min_redemption_not_met',
-                );
-            }
-
+            // The minimum is enforced on the requested amount in resolveRedemption(); the spent amount may be lower when the discount is capped.
             if ($balance < $points) {
                 throw new BusinessException('Insufficient points balance.', 'insufficient_points');
             }
@@ -131,39 +128,145 @@ class LoyaltyService
         });
     }
 
-    public function calculateRedemptionValue(int $userId, int $points, float $bookingSubtotal): float
+    /**
+     * What the customer can redeem on an amount (before tax), based on the active redemption rule and balance.
+     *
+     * @return array{
+     *     enabled: bool,
+     *     balance: int,
+     *     points_per_currency_unit: float|null,
+     *     min_redemption_points: int,
+     *     max_redemption_amount: float|null,
+     *     max_redemption_percentage: float|null,
+     *     max_discount: float,
+     *     max_redeemable_points: int,
+     *     can_redeem: bool
+     * }
+     */
+    public function getRedemptionOptions(int $userId, ?float $payableAmount = null): array
     {
-        $balance = $this->getBalance($userId);
+        $balance = (int) floor($this->getBalance($userId));
         $rule = $this->getActiveRule(LoyaltyRuleType::Redemption);
 
-        if (! $rule || $points <= 0) {
-            return 0;
+        if (! $rule) {
+            return [
+                'enabled' => false,
+                'balance' => $balance,
+                'points_per_currency_unit' => null,
+                'min_redemption_points' => 0,
+                'max_redemption_amount' => null,
+                'max_redemption_percentage' => null,
+                'max_discount' => 0.0,
+                'max_redeemable_points' => 0,
+                'can_redeem' => false,
+            ];
         }
 
-        if ($points > $balance) {
-            throw new BusinessException('Insufficient points balance.', 'insufficient_points');
+        $rate = $this->conversionRate($rule);
+        $minPoints = (int) $rule->min_redemption_points;
+        $maxDiscount = $payableAmount === null ? null : $this->maxDiscountFor($rule, $payableAmount);
+        $byBalance = round($balance / $rate, 2);
+        $maxDiscount = $maxDiscount === null ? $byBalance : min($maxDiscount, $byBalance);
+        $maxPoints = min($balance, (int) ceil(round($maxDiscount * $rate, 4)));
+
+        return [
+            'enabled' => true,
+            'balance' => $balance,
+            'points_per_currency_unit' => $rate,
+            'min_redemption_points' => $minPoints,
+            'max_redemption_amount' => $rule->max_redemption_amount !== null ? (float) $rule->max_redemption_amount : null,
+            'max_redemption_percentage' => $rule->max_redemption_percentage !== null ? (float) $rule->max_redemption_percentage : null,
+            'max_discount' => round($maxDiscount, 2),
+            'max_redeemable_points' => $maxPoints,
+            'can_redeem' => $balance >= max(1, $minPoints) && $maxPoints > 0,
+        ];
+    }
+
+    /**
+     * Resolve the points actually spent and the discount they give. Only the points needed for the
+     * (possibly capped) discount are spent, so the customer never loses points that gave no discount.
+     *
+     * @return array{points_used: int, discount: float}
+     */
+    public function resolveRedemption(int $userId, ?int $requestedPoints, bool $useMaxPoints, float $payableAmount): array
+    {
+        if (! $useMaxPoints && ! $requestedPoints) {
+            return ['points_used' => 0, 'discount' => 0.0];
         }
 
-        if ($points < (int) $rule->min_redemption_points) {
+        $rule = $this->getActiveRule(LoyaltyRuleType::Redemption);
+
+        if (! $rule) {
+            throw new BusinessException('Points redemption is not available right now.', 'redemption_not_configured');
+        }
+
+        $balance = (int) floor($this->getBalance($userId));
+        $minPoints = (int) $rule->min_redemption_points;
+
+        if ($balance < max(1, $minPoints)) {
             throw new BusinessException(
-                "Minimum redemption is {$rule->min_redemption_points} points.",
-                'min_redemption_not_met',
+                $minPoints > 0 ? "You need at least {$minPoints} points to redeem." : 'You have no points to redeem.',
+                $minPoints > 0 ? 'min_redemption_not_met' : 'insufficient_points',
+                422,
+                null,
+                ['balance' => $balance, 'min_redemption_points' => $minPoints],
             );
         }
 
-        $conversionRate = (float) ($rule->value ?: 1);
-        $monetaryValue = round($points / $conversionRate, 2);
+        if ($useMaxPoints) {
+            $requestedPoints = $balance;
+        } else {
+            if ($requestedPoints > $balance) {
+                throw new BusinessException(
+                    'Insufficient points balance.',
+                    'insufficient_points',
+                    422,
+                    null,
+                    ['balance' => $balance, 'requested' => $requestedPoints],
+                );
+            }
+
+            if ($requestedPoints < $minPoints) {
+                throw new BusinessException(
+                    "Minimum redemption is {$minPoints} points.",
+                    'min_redemption_not_met',
+                    422,
+                    null,
+                    ['balance' => $balance, 'min_redemption_points' => $minPoints, 'requested' => $requestedPoints],
+                );
+            }
+        }
+
+        $rate = $this->conversionRate($rule);
+        $discount = min(round($requestedPoints / $rate, 2), $this->maxDiscountFor($rule, $payableAmount));
+
+        if ($discount <= 0) {
+            return ['points_used' => 0, 'discount' => 0.0];
+        }
+
+        $pointsUsed = min($requestedPoints, (int) ceil(round($discount * $rate, 4)));
+
+        return ['points_used' => $pointsUsed, 'discount' => $discount];
+    }
+
+    protected function conversionRate(object $rule): float
+    {
+        return (float) ($rule->value ?: 1);
+    }
+
+    protected function maxDiscountFor(object $rule, float $payableAmount): float
+    {
+        $max = max(0, $payableAmount);
 
         if ($rule->max_redemption_amount) {
-            $monetaryValue = min($monetaryValue, (float) $rule->max_redemption_amount);
+            $max = min($max, (float) $rule->max_redemption_amount);
         }
 
         if ($rule->max_redemption_percentage) {
-            $maxByPercentage = round($bookingSubtotal * ((float) $rule->max_redemption_percentage / 100), 2);
-            $monetaryValue = min($monetaryValue, $maxByPercentage);
+            $max = min($max, round($payableAmount * ((float) $rule->max_redemption_percentage / 100), 2));
         }
 
-        return min($monetaryValue, $bookingSubtotal);
+        return round($max, 2);
     }
 
     public function reversePoints(int $userId, int $bookingId, string $reason): ?Model

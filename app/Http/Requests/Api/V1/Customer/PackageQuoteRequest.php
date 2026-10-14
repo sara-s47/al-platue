@@ -20,6 +20,7 @@ class PackageQuoteRequest extends FormRequest
             'guest_count' => 'required|integer|min:1',
             'promo_code' => 'nullable|string|max:50',
             'points_to_redeem' => 'nullable|integer|min:0',
+            'use_points' => 'nullable|boolean',
             'equipment' => 'nullable|array',
             'equipment.*.id' => 'required_with:equipment|integer|exists:equipment,id',
             'equipment.*.quantity' => 'required_with:equipment|integer|min:1',

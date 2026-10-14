@@ -62,6 +62,7 @@ class PricingService
         BookingMode $bookingMode = BookingMode::Hourly,
         ?array $days = null,
         array $accessories = [],
+        bool $useMaxPoints = false,
     ): array {
         if ($endAt->lte($startAt)) {
             throw new BusinessException('End time must be after start time.', 'invalid_time_range');
@@ -245,9 +246,19 @@ class PricingService
         }
 
         $pointsDiscount = 0.0;
+        $pointsUsed = 0;
+        $pointsInfo = null;
 
-        if ($pointsToRedeem && $userId) {
-            $pointsDiscount = $this->loyaltyService->calculateRedemptionValue($userId, $pointsToRedeem, $subtotal - $discountAmount);
+        if ($userId) {
+            $payable = max(0, $subtotal - $discountAmount);
+            $redemption = $this->loyaltyService->resolveRedemption($userId, $pointsToRedeem, $useMaxPoints, $payable);
+            $pointsDiscount = $redemption['discount'];
+            $pointsUsed = $redemption['points_used'];
+            $pointsInfo = [
+                ...$this->loyaltyService->getRedemptionOptions($userId, $payable),
+                'points_used' => $pointsUsed,
+                'points_discount' => round($pointsDiscount, 2),
+            ];
         }
 
         $taxRate = (float) $this->appSettings->get('tax_rate', 0);
@@ -267,7 +278,8 @@ class PricingService
             'subtotal' => round($subtotal, 2),
             'discount_amount' => round($discountAmount, 2),
             'points_discount' => round($pointsDiscount, 2),
-            'points_to_redeem' => $pointsToRedeem,
+            'points_to_redeem' => $pointsUsed,
+            'points' => $pointsInfo,
             'tax_amount' => $taxAmount,
             'total_amount' => $totalAmount,
             'promo' => $promoDetails,

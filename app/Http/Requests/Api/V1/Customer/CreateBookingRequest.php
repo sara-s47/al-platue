@@ -19,6 +19,7 @@ class CreateBookingRequest extends FormRequest
             'package_id' => 'nullable|integer|exists:packages,id',
             'promo_code' => 'nullable|string|max:50',
             'points_to_redeem' => 'nullable|integer|min:0',
+            'use_points' => 'nullable|boolean',
             'customer_notes' => 'nullable|string|max:1000',
             'equipment' => 'nullable|array',
             'hospitality' => 'nullable|array',

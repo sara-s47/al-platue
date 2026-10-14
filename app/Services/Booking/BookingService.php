@@ -13,6 +13,7 @@ use App\Services\Content\AppSettingsService;
 use App\Services\Inventory\InventoryService;
 use App\Services\Inventory\PackageService;
 use App\Services\Loyalty\LoyaltyService;
+use App\Services\Notification\AdminNotificationService;
 use App\Services\Pricing\PricingService;
 use App\Services\Promotion\PromoCodeService;
 use App\Services\Studio\AvailabilityService;
@@ -21,6 +22,7 @@ use App\Support\BookingNumberGenerator;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class BookingService
 {
@@ -40,6 +42,7 @@ class BookingService
         protected AppSettingsService $appSettings,
         protected BookingNumberGenerator $bookingNumberGenerator,
         protected AccessoryInventoryService $accessoryInventory,
+        protected AdminNotificationService $adminNotifications,
     ) {
     }
 
@@ -65,6 +68,7 @@ class BookingService
         ?string $endDate = null,
         ?int $excludeHoldId = null,
         array $accessories = [],
+        bool $useMaxPoints = false,
     ): array {
         $days = null;
 
@@ -135,6 +139,7 @@ class BookingService
             $bookingMode,
             $days,
             $accessories,
+            $useMaxPoints,
         );
     }
 
@@ -154,6 +159,7 @@ class BookingService
         ?int $pointsToRedeem = null,
         ?string $customerNotes = null,
         array $accessories = [],
+        bool $useMaxPoints = false,
     ): Model {
         return DB::transaction(function () use (
             $holdId,
@@ -166,6 +172,7 @@ class BookingService
             $pointsToRedeem,
             $customerNotes,
             $accessories,
+            $useMaxPoints,
         ) {
             $hold = $this->bookingHoldRepository->findOrFail($holdId);
 
@@ -196,6 +203,7 @@ class BookingService
                 $bookingMode === BookingMode::Daily ? $endAt->toDateString() : null,
                 $holdId,
                 $accessories,
+                $useMaxPoints,
             );
 
             $booking = $this->bookingRepository->create([
@@ -238,14 +246,63 @@ class BookingService
                 );
             }
 
-            if ($pointsToRedeem) {
-                $this->loyaltyService->redeemPoints($userId, $pointsToRedeem, $booking->id);
+            if ((int) $quote['points_to_redeem'] > 0) {
+                $this->loyaltyService->redeemPoints($userId, (int) $quote['points_to_redeem'], $booking->id);
             }
 
             $this->holdService->convertHold($holdId);
 
+            $bookingId = (int) $booking->id;
+            DB::afterCommit(fn () => $this->notifyAdminsOfNewBooking($bookingId));
+
             return $booking->fresh();
         });
+    }
+
+    protected function notifyAdminsOfNewBooking(int $bookingId): void
+    {
+        try {
+            $booking = $this->bookingRepository->findOrFail($bookingId)->loadMissing(['user:id,name,phone', 'studio:id,name', 'package:id,name']);
+            $mode = $booking->booking_mode instanceof BookingMode ? $booking->booking_mode->value : (string) $booking->booking_mode;
+            // Stored times are studio wall-clock values; format them without timezone conversion.
+            $startAt = Carbon::parse($booking->start_at)->format('Y-m-d H:i');
+            $endAt = Carbon::parse($booking->end_at)->format('Y-m-d H:i');
+
+            $this->adminNotifications->notifyAdmins(
+                'booking.created',
+                'New studio booking',
+                sprintf(
+                    '%s booked %s (%s) from %s to %s — %s EGP.',
+                    $booking->user?->name ?? 'A customer',
+                    $booking->studio?->name ?? 'a studio',
+                    $booking->booking_number,
+                    $startAt,
+                    $endAt,
+                    number_format((float) $booking->total_amount, 2),
+                ),
+                [
+                    'booking_id' => $booking->id,
+                    'booking_number' => $booking->booking_number,
+                    'booking_mode' => $mode,
+                    'status' => $booking->status instanceof BookingStatus ? $booking->status->value : (string) $booking->status,
+                    'studio_id' => $booking->studio_id,
+                    'studio_name' => $booking->studio?->name,
+                    'package_id' => $booking->package_id,
+                    'package_name' => $booking->package?->name,
+                    'customer_id' => $booking->user?->id,
+                    'customer_name' => $booking->user?->name,
+                    'customer_phone' => $booking->user?->phone,
+                    'start_at' => $startAt,
+                    'end_at' => $endAt,
+                    'guest_count' => (int) $booking->guest_count,
+                    'total_amount' => (float) $booking->total_amount,
+                    'points_discount' => (float) $booking->points_discount,
+                ],
+                'bookings.manage',
+            );
+        } catch (Throwable $e) {
+            report($e);
+        }
     }
 
     public function confirmBooking(int $bookingId): Model
