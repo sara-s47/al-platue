@@ -19,6 +19,7 @@ class Studio extends Model
         'longitude',
         'rules',
         'is_active',
+        'sort_order',
     ];
 
     protected function casts(): array
@@ -28,6 +29,7 @@ class Studio extends Model
             'latitude' => 'decimal:7',
             'longitude' => 'decimal:7',
             'is_active' => 'boolean',
+            'sort_order' => 'integer',
         ];
     }
 

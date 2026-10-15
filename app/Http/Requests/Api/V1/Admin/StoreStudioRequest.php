@@ -34,6 +34,7 @@ class StoreStudioRequest extends FormRequest
             'longitude' => 'nullable|numeric',
             'rules' => 'nullable|string',
             'is_active' => 'boolean',
+            'sort_order' => 'nullable|integer|min:1',
             'image' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:5120',
             'images' => 'nullable|array|max:10',
             'images.*' => 'image|mimes:jpeg,jpg,png,webp|max:5120',

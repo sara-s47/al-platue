@@ -71,7 +71,8 @@ Route::prefix('v1')->group(function () {
 
         Route::get('categories', [CategoryController::class, 'index']);
         Route::get('studios', [StudioController::class, 'index']);
-        Route::get('studios/{id}', [StudioController::class, 'show']);
+        Route::get('studios/ordered', [StudioController::class, 'ordered']);
+        Route::get('studios/{id}', [StudioController::class, 'show'])->whereNumber('id');
         Route::get('studios/{studioId}/availability', [AvailabilityController::class, 'index']);
         Route::get('studios/{studioId}/availability/daily', [AvailabilityController::class, 'daily']);
         Route::get('studios/{studioId}/equipment', [EquipmentController::class, 'index']);
@@ -153,6 +154,7 @@ Route::prefix('v1')->group(function () {
         Route::middleware('permission:studios.manage')->prefix('studios')->group(function () {
             Route::get('/', [AdminStudioController::class, 'index']);
             Route::post('/', [AdminStudioController::class, 'store']);
+            Route::post('reorder', [AdminStudioController::class, 'reorder']);
             Route::get('{id}', [AdminStudioController::class, 'show']);
             Route::put('{id}', [AdminStudioController::class, 'update']);
             Route::delete('{id}', [AdminStudioController::class, 'destroy']);

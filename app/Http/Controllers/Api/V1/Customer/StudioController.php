@@ -22,6 +22,13 @@ class StudioController extends Controller
         return ApiResponse::paginated($paginator->through(fn ($s) => new StudioResource($s)));
     }
 
+    public function ordered(Request $request): JsonResponse
+    {
+        $studios = $this->studioService->orderedForCustomer($request->only(['category_id', 'search']));
+
+        return ApiResponse::success(StudioResource::collection($studios));
+    }
+
     public function show(int $id): JsonResponse
     {
         $studio = $this->studioService->find($id)->load(['category', 'images']);

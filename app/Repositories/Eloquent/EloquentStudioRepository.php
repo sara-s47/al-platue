@@ -4,6 +4,8 @@ namespace App\Repositories\Eloquent;
 
 use App\Models\Studio;
 use App\Repositories\Contracts\StudioRepositoryInterface;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 
 class EloquentStudioRepository extends BaseRepository implements StudioRepositoryInterface
 {
@@ -16,10 +18,30 @@ class EloquentStudioRepository extends BaseRepository implements StudioRepositor
     {
         return $this->model->newQuery()
             ->with('images')
+            ->orderBy('sort_order')
+            ->orderBy('id')
             ->paginate($perPage, $columns);
     }
 
     public function listForCustomer(array $filters = [], int $perPage = 15): \Illuminate\Contracts\Pagination\LengthAwarePaginator
+    {
+        return $this->customerQuery($filters)->orderBy('name')->paginate($perPage);
+    }
+
+    public function orderedForCustomer(array $filters = []): Collection
+    {
+        return $this->customerQuery($filters)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+    }
+
+    public function nextSortOrder(): int
+    {
+        return ((int) $this->model->newQuery()->max('sort_order')) + 1;
+    }
+
+    protected function customerQuery(array $filters): Builder
     {
         $query = $this->model->newQuery()
             ->with(['category', 'images'])
@@ -46,6 +68,6 @@ class EloquentStudioRepository extends BaseRepository implements StudioRepositor
             $query->where('capacity', '>=', (int) $filters['guest_count']);
         }
 
-        return $query->orderBy('name')->paginate($perPage);
+        return $query;
     }
 }
