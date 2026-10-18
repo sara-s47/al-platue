@@ -84,18 +84,12 @@ class AvailabilityService
             ]);
         }
 
-        $dayStart = Carbon::parse($date.' '.$schedule['open_time'], $timezone);
-        $dayEnd = Carbon::parse($date.' '.$schedule['close_time'], $timezone);
-
-        if ($dayEnd->lte($dayStart)) {
-            return $this->emptySlotsResult('invalid_opening_hours', [
-                'schedule' => [
-                    'source' => $schedule['source'] ?? null,
-                    'open_time' => $schedule['open_time'],
-                    'close_time' => $schedule['close_time'],
-                ],
-            ]);
-        }
+        [$dayStart, $dayEnd] = $this->resolveOpenWindow(
+            $date,
+            $schedule['open_time'],
+            $schedule['close_time'],
+            $timezone,
+        );
 
         if ($dayStart->copy()->addMinutes($durationMinutes)->gt($dayEnd)) {
             return $this->emptySlotsResult('duration_exceeds_opening_hours', [
@@ -181,6 +175,24 @@ class AvailabilityService
     }
 
     /**
+     * Build the open window for a calendar date.
+     * If close_time is on/before open_time (e.g. 06:00→00:00 midnight), close is treated as the next day.
+     *
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    protected function resolveOpenWindow(string $date, string $openTime, string $closeTime, string $timezone): array
+    {
+        $dayStart = Carbon::parse($date.' '.$openTime, $timezone);
+        $dayEnd = Carbon::parse($date.' '.$closeTime, $timezone);
+
+        if ($dayEnd->lte($dayStart)) {
+            $dayEnd = $dayEnd->addDay();
+        }
+
+        return [$dayStart, $dayEnd];
+    }
+
+    /**
      * Validate that a concrete time range can be booked for the studio.
      *
      * @throws BusinessException
@@ -236,20 +248,21 @@ class AvailabilityService
 
         $date = $startAt->toDateString();
 
-        if ($endAt->toDateString() !== $date) {
-            throw new BusinessException('Bookings must start and end on the same day.', 'invalid_time_range');
-        }
-
         $schedule = $this->scheduleService->getEffectiveSchedule($studioId, $date);
 
         if ($schedule['is_closed'] || ! $schedule['open_time'] || ! $schedule['close_time']) {
             throw new BusinessException('Studio is closed on the selected date.', 'studio_closed');
         }
 
-        $dayStart = Carbon::parse($date.' '.$schedule['open_time'], $timezone);
-        $dayEnd = Carbon::parse($date.' '.$schedule['close_time'], $timezone);
+        [$dayStart, $dayEnd] = $this->resolveOpenWindow(
+            $date,
+            $schedule['open_time'],
+            $schedule['close_time'],
+            $timezone,
+        );
 
-        if ($startAt->lt($dayStart) || $endAt->gt($dayEnd)) {
+        // Start must be on the requested calendar day; end may land on the next day when close is 00:00 / overnight.
+        if ($startAt->lt($dayStart) || $endAt->gt($dayEnd) || $endAt->lte($startAt)) {
             throw new BusinessException('Selected slot is outside studio opening hours.', 'outside_opening_hours');
         }
 
@@ -371,9 +384,19 @@ class AvailabilityService
             $cursor->addDay();
         }
 
-        $rangeStart = Carbon::parse($days[0]['date'].' '.$days[0]['open_time'], $timezone);
+        [$rangeStart] = $this->resolveOpenWindow(
+            $days[0]['date'],
+            $days[0]['open_time'],
+            $days[0]['close_time'],
+            $timezone,
+        );
         $lastDay = $days[array_key_last($days)];
-        $rangeEnd = Carbon::parse($lastDay['date'].' '.$lastDay['close_time'], $timezone);
+        [, $rangeEnd] = $this->resolveOpenWindow(
+            $lastDay['date'],
+            $lastDay['open_time'],
+            $lastDay['close_time'],
+            $timezone,
+        );
 
         $this->bookingHoldRepository->expirePast();
 
