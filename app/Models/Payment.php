@@ -13,6 +13,7 @@ class Payment extends Model
     protected $fillable = [
         'booking_id',
         'accessory_rental_id',
+        'equipment_rental_id',
         'type',
         'amount',
         'status',
@@ -39,6 +40,11 @@ class Payment extends Model
     public function accessoryRental(): BelongsTo
     {
         return $this->belongsTo(AccessoryRental::class);
+    }
+
+    public function equipmentRental(): BelongsTo
+    {
+        return $this->belongsTo(EquipmentRental::class);
     }
 
     public function refunds(): HasMany

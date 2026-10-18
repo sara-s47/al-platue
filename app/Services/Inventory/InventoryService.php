@@ -3,6 +3,7 @@
 namespace App\Services\Inventory;
 
 use App\Enums\BookingStatus;
+use App\Enums\EquipmentRentalStatus;
 use App\Enums\EquipmentStatus;
 use App\Exceptions\BusinessException;
 use App\Repositories\Contracts\EquipmentRepositoryInterface;
@@ -315,7 +316,7 @@ class InventoryService
         ?int $excludeBookingId,
         ?int $studioId = null,
     ): int {
-        return (int) DB::table('booking_equipment')
+        $fromBookings = (int) DB::table('booking_equipment')
             ->join('bookings', 'bookings.id', '=', 'booking_equipment.booking_id')
             ->where('booking_equipment.equipment_id', $equipmentId)
             ->when($studioId, fn ($q) => $q->where('bookings.studio_id', $studioId))
@@ -324,6 +325,25 @@ class InventoryService
             ->where('bookings.end_at', '>', $startAt)
             ->when($excludeBookingId, fn ($q) => $q->where('bookings.id', '!=', $excludeBookingId))
             ->sum('booking_equipment.quantity');
+
+        // Standalone rentals are global (no studio); only count them in the global total.
+        if ($studioId !== null) {
+            return $fromBookings;
+        }
+
+        $fromRentals = (int) DB::table('equipment_rental_items')
+            ->join('equipment_rentals', 'equipment_rentals.id', '=', 'equipment_rental_items.equipment_rental_id')
+            ->where('equipment_rental_items.equipment_id', $equipmentId)
+            ->whereIn('equipment_rentals.status', [
+                EquipmentRentalStatus::Pending->value,
+                EquipmentRentalStatus::Confirmed->value,
+                EquipmentRentalStatus::InProgress->value,
+            ])
+            ->where('equipment_rentals.start_date', '<=', $endAt->copy()->subSecond()->toDateString())
+            ->where('equipment_rentals.end_date', '>=', $startAt->toDateString())
+            ->sum('equipment_rental_items.quantity');
+
+        return $fromBookings + $fromRentals;
     }
 
     protected function getAllocatedHospitalityQuantity(

@@ -2,6 +2,7 @@
 
 namespace App\Repositories\Eloquent;
 
+use App\Enums\EquipmentStatus;
 use App\Models\Equipment;
 use App\Repositories\Contracts\EquipmentRepositoryInterface;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -30,5 +31,22 @@ class EloquentEquipmentRepository extends BaseRepository implements EquipmentRep
             ->with(['images', 'studios'])
             ->orderByDesc('id')
             ->paginate($perPage, $columns);
+    }
+
+    public function listForCustomer(array $filters = [], int $perPage = 15): LengthAwarePaginator
+    {
+        $query = $this->model->newQuery()
+            ->with('images')
+            ->where('status', EquipmentStatus::Active);
+
+        if (! empty($filters['search'])) {
+            $search = $filters['search'];
+            $query->where(function ($builder) use ($search) {
+                $builder->where('name', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
+        return $query->orderBy('name')->paginate($perPage);
     }
 }

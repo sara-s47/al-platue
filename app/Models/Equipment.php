@@ -16,6 +16,7 @@ class Equipment extends Model
         'name',
         'description',
         'price',
+        'price_per_day',
         'quantity',
         'status',
         'is_included',
@@ -25,6 +26,7 @@ class Equipment extends Model
     {
         return [
             'price' => 'decimal:2',
+            'price_per_day' => 'decimal:2',
             'quantity' => 'integer',
             'status' => EquipmentStatus::class,
             'is_included' => 'boolean',
@@ -51,6 +53,11 @@ class Equipment extends Model
     public function bookingEquipment(): HasMany
     {
         return $this->hasMany(BookingEquipment::class);
+    }
+
+    public function rentalItems(): HasMany
+    {
+        return $this->hasMany(EquipmentRentalItem::class);
     }
 
     public function favorites(): MorphMany

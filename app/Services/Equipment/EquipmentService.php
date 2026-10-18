@@ -4,7 +4,9 @@ namespace App\Services\Equipment;
 
 use App\Enums\EquipmentStatus;
 use App\Exceptions\BusinessException;
+use App\Models\BookingEquipment;
 use App\Models\Equipment;
+use App\Models\EquipmentRentalItem;
 use App\Repositories\Contracts\EquipmentRepositoryInterface;
 use App\Repositories\Contracts\StudioRepositoryInterface;
 use App\Services\Inventory\InventoryService;
@@ -81,11 +83,48 @@ class EquipmentService
                 throw new BusinessException('Cannot delete equipment used in bookings.', 'equipment_in_use');
             }
 
+            if (DB::table('equipment_rental_items')->where('equipment_id', $id)->exists()) {
+                throw new BusinessException('Cannot delete equipment used in rentals.', 'equipment_in_use');
+            }
+
             DB::table('studio_equipment')->where('equipment_id', $id)->delete();
             $this->syncImages($id, []);
 
             return $this->equipmentRepository->delete($id);
         });
+    }
+
+    /**
+     * Rental history: standalone equipment_rentals and/or studio booking allocations.
+     */
+    public function rentalHistory(int $equipmentId, array $filters = [], int $perPage = 15): LengthAwarePaginator
+    {
+        $this->equipmentRepository->findOrFail($equipmentId);
+
+        $type = $filters['type'] ?? null;
+        $status = $filters['status'] ?? null;
+        $from = $filters['from'] ?? null;
+        $to = $filters['to'] ?? null;
+
+        if ($type === 'with_studio') {
+            return BookingEquipment::query()
+                ->where('equipment_id', $equipmentId)
+                ->with(['booking.user', 'booking.studio'])
+                ->when($status, fn ($q) => $q->whereHas('booking', fn ($b) => $b->where('status', $status)))
+                ->when($from, fn ($q) => $q->whereHas('booking', fn ($b) => $b->whereDate('end_at', '>=', $from)))
+                ->when($to, fn ($q) => $q->whereHas('booking', fn ($b) => $b->whereDate('start_at', '<=', $to)))
+                ->orderByDesc('id')
+                ->paginate($perPage);
+        }
+
+        return EquipmentRentalItem::query()
+            ->where('equipment_id', $equipmentId)
+            ->with(['rental.user'])
+            ->when($status, fn ($q) => $q->whereHas('rental', fn ($r) => $r->where('status', $status)))
+            ->when($from, fn ($q) => $q->whereHas('rental', fn ($r) => $r->where('end_date', '>=', $from)))
+            ->when($to, fn ($q) => $q->whereHas('rental', fn ($r) => $r->where('start_date', '<=', $to)))
+            ->orderByDesc('id')
+            ->paginate($perPage);
     }
 
     /**
@@ -259,6 +298,10 @@ class EquipmentService
         if (array_key_exists('price_per_hour', $data)) {
             $data['price'] = $data['price_per_hour'];
             unset($data['price_per_hour']);
+        }
+
+        if (array_key_exists('price', $data) && ! array_key_exists('price_per_day', $data)) {
+            $data['price_per_day'] = $data['price'];
         }
 
         if (array_key_exists('status', $data)) {

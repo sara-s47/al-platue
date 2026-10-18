@@ -27,6 +27,7 @@ class StoreEquipmentRequest extends FormRequest
             'description' => 'nullable|string',
             'quantity' => 'required|integer|min:1',
             'price_per_hour' => 'required|numeric|min:0',
+            'price_per_day' => 'nullable|numeric|min:0',
             'status' => ['nullable', 'string', Rule::in([...array_column(EquipmentStatus::cases(), 'value'), 'available'])],
             'image' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:5120',
             'images' => 'nullable|array|max:5',

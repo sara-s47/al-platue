@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminCancellationPolicyController;
 use App\Http\Controllers\Api\V1\Admin\AdminCategoryController;
 use App\Http\Controllers\Api\V1\Admin\AdminContentController;
 use App\Http\Controllers\Api\V1\Admin\AdminEquipmentController;
+use App\Http\Controllers\Api\V1\Admin\AdminEquipmentRentalController;
 use App\Http\Controllers\Api\V1\Admin\AdminHospitalityController;
 use App\Http\Controllers\Api\V1\Admin\AdminInboxController;
 use App\Http\Controllers\Api\V1\Admin\AdminInteriorDesignerController;
@@ -39,6 +40,7 @@ use App\Http\Controllers\Api\V1\Customer\CartController;
 use App\Http\Controllers\Api\V1\Customer\CategoryController;
 use App\Http\Controllers\Api\V1\Customer\ContentController;
 use App\Http\Controllers\Api\V1\Customer\EquipmentController;
+use App\Http\Controllers\Api\V1\Customer\EquipmentRentalController;
 use App\Http\Controllers\Api\V1\Customer\FavoriteController;
 use App\Http\Controllers\Api\V1\Customer\HospitalityController;
 use App\Http\Controllers\Api\V1\Customer\InteriorDesignerController;
@@ -111,6 +113,16 @@ Route::prefix('v1')->group(function () {
         Route::post('accessory-rentals', [AccessoryRentalController::class, 'store']);
         Route::get('accessory-rentals/{id}', [AccessoryRentalController::class, 'show'])->whereNumber('id');
         Route::post('accessory-rentals/{id}/cancel', [AccessoryRentalController::class, 'cancel']);
+
+        Route::get('equipment', [EquipmentController::class, 'catalog']);
+        Route::get('equipment/availability', [EquipmentController::class, 'availability']);
+        Route::get('equipment/{id}', [EquipmentController::class, 'show'])->whereNumber('id');
+
+        Route::post('equipment-rentals/quote', [EquipmentRentalController::class, 'quote']);
+        Route::get('equipment-rentals', [EquipmentRentalController::class, 'index']);
+        Route::post('equipment-rentals', [EquipmentRentalController::class, 'store']);
+        Route::get('equipment-rentals/{id}', [EquipmentRentalController::class, 'show'])->whereNumber('id');
+        Route::post('equipment-rentals/{id}/cancel', [EquipmentRentalController::class, 'cancel']);
 
         Route::get('interior-designers', [InteriorDesignerController::class, 'index']);
         Route::get('interior-designers/{id}', [InteriorDesignerController::class, 'show'])->whereNumber('id');
@@ -215,7 +227,15 @@ Route::prefix('v1')->group(function () {
             Route::delete('{id}', [AdminEquipmentController::class, 'destroy']);
             Route::post('{equipmentId}/assign', [AdminEquipmentController::class, 'assign']);
             Route::get('{equipmentId}/availability', [AdminEquipmentController::class, 'availability']);
+            Route::get('{id}/rentals', [AdminEquipmentController::class, 'rentals']);
             Route::delete('{equipmentId}/studios/{studioId}', [AdminEquipmentController::class, 'unassign']);
+        });
+
+        Route::middleware('permission:equipment.manage')->prefix('equipment-rentals')->group(function () {
+            Route::get('/', [AdminEquipmentRentalController::class, 'index']);
+            Route::get('{id}', [AdminEquipmentRentalController::class, 'show']);
+            Route::post('{id}/status', [AdminEquipmentRentalController::class, 'updateStatus']);
+            Route::post('{id}/mark-paid', [AdminEquipmentRentalController::class, 'markPaid']);
         });
 
         Route::middleware('permission:hospitality.manage')->prefix('hospitality')->group(function () {

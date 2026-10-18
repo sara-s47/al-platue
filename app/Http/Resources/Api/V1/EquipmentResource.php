@@ -27,6 +27,7 @@ class EquipmentResource extends JsonResource
             'name' => $this->name,
             'description' => $this->description,
             'price_per_hour' => $this->price ?? null,
+            'price_per_day' => $this->price_per_day ?? $this->price ?? null,
             'quantity' => $this->quantity ?? $this->studio_quantity ?? null,
             'status' => $this->status ?? null,
             'image' => $primary,

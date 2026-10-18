@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Admin\AssignEquipmentRequest;
 use App\Http\Requests\Api\V1\Admin\StoreEquipmentRequest;
 use App\Http\Requests\Api\V1\Admin\UpdateEquipmentRequest;
+use App\Http\Resources\Api\V1\EquipmentRentalHistoryResource;
 use App\Http\Resources\Api\V1\EquipmentResource;
 use App\Http\Responses\ApiResponse;
 use App\Services\Equipment\EquipmentService;
@@ -104,6 +105,20 @@ class AdminEquipmentController extends Controller
                 Carbon::parse($data['end_at']),
             )
         );
+    }
+
+    public function rentals(Request $request, int $id): JsonResponse
+    {
+        $filters = $request->validate([
+            'type' => 'nullable|in:standalone,with_studio',
+            'status' => 'nullable|string|max:20',
+            'from' => 'nullable|date_format:Y-m-d',
+            'to' => 'nullable|date_format:Y-m-d',
+        ]);
+
+        $p = $this->equipmentService->rentalHistory($id, $filters, (int) $request->get('per_page', 15));
+
+        return ApiResponse::paginated($p->through(fn ($item) => new EquipmentRentalHistoryResource($item)));
     }
 
     /**
