@@ -26,6 +26,12 @@ class AvailabilityService
     ) {
     }
 
+    /**
+     * @return array{
+     *     slots: list<array{start_at: string, end_at: string}>,
+     *     meta: array<string, mixed>
+     * }
+     */
     public function getAvailableSlots(
         int $studioId,
         string $date,
@@ -38,7 +44,7 @@ class AvailabilityService
         $studio = $this->studioRepository->findOrFail($studioId);
 
         if (! $studio->is_active) {
-            return [];
+            return $this->emptySlotsResult('studio_inactive');
         }
 
         if ($guestCount !== null && $guestCount > $studio->capacity) {
@@ -47,7 +53,7 @@ class AvailabilityService
 
         $config = $this->appSettingsService->getBookingConfig();
         $timezone = $config['timezone'];
-        $interval = $config['booking_interval_minutes'];
+        $interval = max(1, (int) $config['booking_interval_minutes']);
         $minDuration = $config['minimum_booking_minutes'];
         $maxDuration = $config['maximum_booking_minutes'];
         $buffer = $config['cleanup_buffer_minutes'];
@@ -67,36 +73,57 @@ class AvailabilityService
         $schedule = $this->scheduleService->getEffectiveSchedule($studioId, $date);
 
         if ($schedule['is_closed'] || ! $schedule['open_time'] || ! $schedule['close_time']) {
-            return [];
+            return $this->emptySlotsResult('studio_closed', [
+                'schedule' => [
+                    'source' => $schedule['source'] ?? null,
+                    'is_closed' => (bool) ($schedule['is_closed'] ?? true),
+                    'open_time' => $schedule['open_time'] ?? null,
+                    'close_time' => $schedule['close_time'] ?? null,
+                    'override_id' => $schedule['override_id'] ?? null,
+                ],
+            ]);
         }
 
         $dayStart = Carbon::parse($date.' '.$schedule['open_time'], $timezone);
         $dayEnd = Carbon::parse($date.' '.$schedule['close_time'], $timezone);
 
-        $bookings = $this->bookingRepository->getOverlappingForStudio(
-            $studioId,
-            $dayStart->copy()->startOfDay()->toDateTimeString(),
-            $dayEnd->copy()->endOfDay()->toDateTimeString(),
-        );
+        if ($dayEnd->lte($dayStart)) {
+            return $this->emptySlotsResult('invalid_opening_hours', [
+                'schedule' => [
+                    'source' => $schedule['source'] ?? null,
+                    'open_time' => $schedule['open_time'],
+                    'close_time' => $schedule['close_time'],
+                ],
+            ]);
+        }
 
-        $holds = $this->bookingHoldRepository->getActiveOverlappingForStudio(
-            $studioId,
-            $dayStart->copy()->startOfDay()->toDateTimeString(),
-            $dayEnd->copy()->endOfDay()->toDateTimeString(),
-        );
+        if ($dayStart->copy()->addMinutes($durationMinutes)->gt($dayEnd)) {
+            return $this->emptySlotsResult('duration_exceeds_opening_hours', [
+                'schedule' => [
+                    'source' => $schedule['source'] ?? null,
+                    'open_time' => $schedule['open_time'],
+                    'close_time' => $schedule['close_time'],
+                ],
+                'duration_minutes' => $durationMinutes,
+                'open_window_minutes' => (int) $dayStart->diffInMinutes($dayEnd),
+            ]);
+        }
 
-        $blocks = $this->studioBlockRepository->getOverlappingForStudio(
-            $studioId,
-            $dayStart->copy()->startOfDay()->toDateTimeString(),
-            $dayEnd->copy()->endOfDay()->toDateTimeString(),
-        );
+        $rangeStart = $dayStart->copy()->startOfDay()->toDateTimeString();
+        $rangeEnd = $dayEnd->copy()->endOfDay()->toDateTimeString();
+
+        $bookings = $this->bookingRepository->getOverlappingForStudio($studioId, $rangeStart, $rangeEnd);
+        $holds = $this->bookingHoldRepository->getActiveOverlappingForStudio($studioId, $rangeStart, $rangeEnd);
+        $blocks = $this->studioBlockRepository->getOverlappingForStudio($studioId, $rangeStart, $rangeEnd);
 
         $occupied = $this->buildOccupiedPeriods($bookings, $holds, $blocks, $buffer, $timezone);
 
         $slots = [];
+        $candidates = 0;
         $cursor = $dayStart->copy();
 
         while ($cursor->copy()->addMinutes($durationMinutes)->lte($dayEnd)) {
+            $candidates++;
             $slotStart = $cursor->copy();
             $slotEnd = $cursor->copy()->addMinutes($durationMinutes);
 
@@ -112,7 +139,45 @@ class AvailabilityService
             $cursor->addMinutes($interval);
         }
 
-        return $slots;
+        $meta = [
+            'date' => $date,
+            'timezone' => $timezone,
+            'duration_minutes' => $durationMinutes,
+            'interval_minutes' => $interval,
+            'schedule' => [
+                'source' => $schedule['source'] ?? null,
+                'open_time' => $schedule['open_time'],
+                'close_time' => $schedule['close_time'],
+                'is_closed' => false,
+            ],
+            'occupied' => [
+                'bookings' => $bookings->count(),
+                'holds' => $holds->count(),
+                'blocks' => $blocks->count(),
+            ],
+            'candidates' => $candidates,
+            'empty_reason' => null,
+        ];
+
+        if ($slots === []) {
+            $meta['empty_reason'] = $candidates === 0
+                ? 'no_slot_candidates'
+                : 'fully_occupied';
+        }
+
+        return ['slots' => $slots, 'meta' => $meta];
+    }
+
+    /**
+     * @param  array<string, mixed>  $extra
+     * @return array{slots: list<array{start_at: string, end_at: string}>, meta: array<string, mixed>}
+     */
+    protected function emptySlotsResult(string $reason, array $extra = []): array
+    {
+        return [
+            'slots' => [],
+            'meta' => array_merge(['empty_reason' => $reason], $extra),
+        ];
     }
 
     /**

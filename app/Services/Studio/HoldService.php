@@ -57,7 +57,7 @@ class HoldService
                 } else {
                     $durationMinutes = $startAt->diffInMinutes($endAt);
 
-                    $slots = $this->availabilityService->getAvailableSlots(
+                    $availability = $this->availabilityService->getAvailableSlots(
                         $data['studio_id'],
                         $startAt->toDateString(),
                         $durationMinutes,
@@ -66,7 +66,7 @@ class HoldService
                         $data['hospitality_ids'] ?? null,
                     );
 
-                    $isAvailable = collect($slots)->contains(function (array $slot) use ($startAt, $endAt) {
+                    $isAvailable = collect($availability['slots'])->contains(function (array $slot) use ($startAt, $endAt) {
                         return Carbon::parse($slot['start_at'])->equalTo($startAt)
                             && Carbon::parse($slot['end_at'])->equalTo($endAt);
                     });

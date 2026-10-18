@@ -42,7 +42,7 @@ class AvailabilityController extends Controller
             $enforceDurationLimits = false;
         }
 
-        $slots = $this->availabilityService->getAvailableSlots(
+        $result = $this->availabilityService->getAvailableSlots(
             $studioId,
             $request->date,
             $duration,
@@ -50,7 +50,8 @@ class AvailabilityController extends Controller
             enforceDurationLimits: $enforceDurationLimits,
         );
 
-        return ApiResponse::success($slots);
+        // data stays a bare slots array for frontend compatibility; diagnostics go in meta.
+        return ApiResponse::success($result['slots'], null, 200, $result['meta']);
     }
 
     public function daily(Request $request, int $studioId): JsonResponse

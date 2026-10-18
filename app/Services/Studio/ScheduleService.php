@@ -46,7 +46,8 @@ class ScheduleService
     {
         $this->studioRepository->findOrFail($studioId);
 
-        $carbonDate = Carbon::parse($date);
+        // Parse as a calendar date (no TZ shift) so day_of_week matches the admin weekly schedule keys (0=Sunday … 6=Saturday).
+        $carbonDate = Carbon::createFromFormat('Y-m-d', Carbon::parse($date)->toDateString())->startOfDay();
         $override = $this->overrideRepository->findForStudioAndDate($studioId, $carbonDate->toDateString());
 
         if ($override) {
@@ -62,7 +63,7 @@ class ScheduleService
             ];
         }
 
-        $weekly = $this->scheduleRepository->findForStudioAndDay($studioId, $carbonDate->dayOfWeek);
+        $weekly = $this->scheduleRepository->findForStudioAndDay($studioId, (int) $carbonDate->dayOfWeek);
 
         if (! $weekly) {
             return [
