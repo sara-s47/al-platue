@@ -23,6 +23,7 @@ class PackageHoldRequest extends FormRequest
             'hospitality' => 'nullable|array',
             'hospitality.*.id' => 'required_with:hospitality|integer|exists:hospitality_items,id',
             'hospitality.*.quantity' => 'required_with:hospitality|integer|min:1',
+            'studio_items' => 'prohibited',
         ];
     }
 }

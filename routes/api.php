@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminScheduleController;
 use App\Http\Controllers\Api\V1\Admin\AdminSegmentController;
 use App\Http\Controllers\Api\V1\Admin\AdminStaffController;
 use App\Http\Controllers\Api\V1\Admin\AdminStudioController;
+use App\Http\Controllers\Api\V1\Admin\AdminStudioItemController;
 use App\Http\Controllers\Api\V1\Admin\AdminUserController;
 use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\Customer\AccessoryController;
@@ -34,6 +35,7 @@ use App\Http\Controllers\Api\V1\Customer\AccessoryRentalController;
 use App\Http\Controllers\Api\V1\Customer\AvailabilityController;
 use App\Http\Controllers\Api\V1\Customer\BookingController;
 use App\Http\Controllers\Api\V1\Customer\BookingHoldController;
+use App\Http\Controllers\Api\V1\Customer\CartController;
 use App\Http\Controllers\Api\V1\Customer\CategoryController;
 use App\Http\Controllers\Api\V1\Customer\ContentController;
 use App\Http\Controllers\Api\V1\Customer\EquipmentController;
@@ -48,6 +50,7 @@ use App\Http\Controllers\Api\V1\Customer\ProfileController;
 use App\Http\Controllers\Api\V1\Customer\PromoCodeController;
 use App\Http\Controllers\Api\V1\Customer\ReviewController;
 use App\Http\Controllers\Api\V1\Customer\SavedSetupController;
+use App\Http\Controllers\Api\V1\Customer\StudioItemController as CustomerStudioItemController;
 use App\Http\Controllers\Api\V1\Customer\StudioController;
 // use App\Http\Controllers\Api\V1\Webhooks\PaymobWebhookController;
 use Illuminate\Support\Facades\Route;
@@ -77,6 +80,7 @@ Route::prefix('v1')->group(function () {
         Route::get('studios/{studioId}/availability/daily', [AvailabilityController::class, 'daily']);
         Route::get('studios/{studioId}/equipment', [EquipmentController::class, 'index']);
         Route::get('studios/{studioId}/hospitality', [HospitalityController::class, 'index']);
+        Route::get('studios/{studioId}/items', [CustomerStudioItemController::class, 'index']);
         Route::get('studios/{studioId}/packages', [PackageController::class, 'index']);
 
         Route::post('booking-holds', [BookingHoldController::class, 'store']);
@@ -117,7 +121,18 @@ Route::prefix('v1')->group(function () {
 
         Route::get('favorites', [FavoriteController::class, 'index']);
         Route::post('favorites', [FavoriteController::class, 'store']);
-        Route::delete('favorites/{studioId}', [FavoriteController::class, 'destroy']);
+        Route::delete('favorites/{type}/{id}', [FavoriteController::class, 'destroy'])
+            ->whereIn('type', ['studio', 'equipment', 'accessory']);
+        Route::delete('favorites/{studioId}', [FavoriteController::class, 'destroyStudio'])
+            ->whereNumber('studioId');
+
+        Route::get('cart', [CartController::class, 'index']);
+        Route::post('cart', [CartController::class, 'store']);
+        Route::delete('cart', [CartController::class, 'clear']);
+        Route::put('cart/{type}/{id}', [CartController::class, 'update'])
+            ->whereIn('type', ['equipment', 'accessory']);
+        Route::delete('cart/{type}/{id}', [CartController::class, 'destroy'])
+            ->whereIn('type', ['equipment', 'accessory']);
 
         Route::apiResource('saved-setups', SavedSetupController::class)->except(['show']);
 
@@ -160,6 +175,12 @@ Route::prefix('v1')->group(function () {
             Route::delete('{id}', [AdminStudioController::class, 'destroy']);
             Route::post('{id}/toggle', [AdminStudioController::class, 'toggle']);
             Route::post('{id}/images', [AdminStudioController::class, 'uploadImages']);
+            Route::get('{studioId}/items', [AdminStudioItemController::class, 'index']);
+            Route::post('{studioId}/items', [AdminStudioItemController::class, 'store']);
+            Route::get('{studioId}/items/{id}', [AdminStudioItemController::class, 'show']);
+            Route::put('{studioId}/items/{id}', [AdminStudioItemController::class, 'update']);
+            Route::post('{studioId}/items/{id}', [AdminStudioItemController::class, 'update']);
+            Route::delete('{studioId}/items/{id}', [AdminStudioItemController::class, 'destroy']);
         });
 
         Route::middleware('permission:users.manage')->prefix('users')->group(function () {

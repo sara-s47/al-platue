@@ -55,6 +55,10 @@ class QuoteRequest extends FormRequest
             'accessories' => 'nullable|array',
             'accessories.*.id' => 'required|integer|exists:accessories,id',
             'accessories.*.quantity' => 'required|integer|min:1',
+            'studio_items' => 'nullable|array',
+            'studio_items.*.id' => 'required|integer|exists:studio_items,id',
+            'studio_items.*.quantity' => 'required|integer|min:0',
+            'studio_items.*.color' => 'nullable|string|max:50',
         ];
     }
 }

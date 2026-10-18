@@ -2,9 +2,13 @@
 
 namespace App\Services\Engagement;
 
+use App\Enums\EquipmentStatus;
 use App\Exceptions\BusinessException;
+use App\Models\Accessory;
+use App\Models\Equipment;
+use App\Models\Favorite;
+use App\Models\Studio;
 use App\Repositories\Contracts\FavoriteRepositoryInterface;
-use App\Repositories\Contracts\StudioRepositoryInterface;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Model;
 
@@ -12,39 +16,64 @@ class FavoriteService
 {
     public function __construct(
         protected FavoriteRepositoryInterface $favoriteRepository,
-        protected StudioRepositoryInterface $studioRepository,
     ) {
     }
 
-    public function listForUser(int $userId, int $perPage = 15): LengthAwarePaginator
+    public function listForUser(int $userId, int $perPage = 15, ?string $type = null): LengthAwarePaginator
     {
-        return \App\Models\Favorite::query()->with('studio')->where('user_id', $userId)->latest()->paginate($perPage);
+        $query = Favorite::query()
+            ->with(['favoritable' => function ($morphTo) {
+                $morphTo->morphWith([
+                    Studio::class => ['images', 'category'],
+                    Equipment::class => ['images'],
+                    Accessory::class => ['images'],
+                ]);
+            }])
+            ->where('user_id', $userId)
+            ->latest('id');
+
+        if ($type !== null) {
+            $query->where('favoritable_type', $type);
+        }
+
+        return $query->paginate($perPage);
     }
 
-    public function add(int $userId, int $studioId): Model
+    public function add(int $userId, string $type, int $id): Model
     {
-        $this->studioRepository->findOrFail($studioId);
+        $this->assertFavoritable($type, $id);
 
-        $existing = \App\Models\Favorite::query()
+        $existing = Favorite::query()
             ->where('user_id', $userId)
-            ->where('studio_id', $studioId)
+            ->where('favoritable_type', $type)
+            ->where('favoritable_id', $id)
             ->first();
 
         if ($existing) {
-            throw new BusinessException('Studio already in favorites.', 'favorite_exists');
+            throw new BusinessException('Already in favorites.', 'favorite_exists');
         }
 
-        return $this->favoriteRepository->create([
+        $favorite = $this->favoriteRepository->create([
             'user_id' => $userId,
-            'studio_id' => $studioId,
+            'favoritable_type' => $type,
+            'favoritable_id' => $id,
         ]);
+
+        return $favorite->load(['favoritable' => function ($morphTo) {
+            $morphTo->morphWith([
+                Studio::class => ['images', 'category'],
+                Equipment::class => ['images'],
+                Accessory::class => ['images'],
+            ]);
+        }]);
     }
 
-    public function remove(int $userId, int $studioId): bool
+    public function remove(int $userId, string $type, int $id): bool
     {
-        $favorite = \App\Models\Favorite::query()
+        $favorite = Favorite::query()
             ->where('user_id', $userId)
-            ->where('studio_id', $studioId)
+            ->where('favoritable_type', $type)
+            ->where('favoritable_id', $id)
             ->first();
 
         if (! $favorite) {
@@ -52,5 +81,26 @@ class FavoriteService
         }
 
         return $this->favoriteRepository->delete($favorite->id);
+    }
+
+    protected function assertFavoritable(string $type, int $id): void
+    {
+        if (! in_array($type, Favorite::TYPES, true)) {
+            throw new BusinessException('Invalid favorite type.', 'favorite_type_invalid');
+        }
+
+        $exists = match ($type) {
+            Favorite::TYPE_STUDIO => Studio::query()->whereKey($id)->where('is_active', true)->exists(),
+            Favorite::TYPE_EQUIPMENT => Equipment::query()
+                ->whereKey($id)
+                ->where('status', EquipmentStatus::Active)
+                ->exists(),
+            Favorite::TYPE_ACCESSORY => Accessory::query()->whereKey($id)->where('is_active', true)->exists(),
+            default => false,
+        };
+
+        if (! $exists) {
+            throw new BusinessException('Item not found or not available.', 'favorite_target_invalid', 404);
+        }
     }
 }

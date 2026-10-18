@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class Accessory extends Model
 {
@@ -32,5 +33,10 @@ class Accessory extends Model
     public function rentalItems(): HasMany
     {
         return $this->hasMany(AccessoryRentalItem::class);
+    }
+
+    public function favorites(): MorphMany
+    {
+        return $this->morphMany(Favorite::class, 'favoritable');
     }
 }

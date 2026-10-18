@@ -15,6 +15,7 @@ use App\Services\Content\AppSettingsService;
 use App\Services\Inventory\PackageService;
 use App\Services\Loyalty\LoyaltyService;
 use App\Services\Promotion\PromoCodeService;
+use App\Services\Studio\StudioItemService;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -38,6 +39,7 @@ class PricingService
         protected LoyaltyService $loyaltyService,
         protected AppSettingsService $appSettings,
         protected AccessoryPricingService $accessoryPricing,
+        protected StudioItemService $studioItemService,
     ) {
     }
 
@@ -46,6 +48,8 @@ class PricingService
      * @param  array<int, array{id: int, quantity: int}>  $hospitality
      * @param  list<array{date: string, open_time: string, close_time: string}>|null  $days
      * @param  array<int, array{id: int, quantity: int}>  $accessories
+     * @param  list<array{id: int, quantity: int, color?: string|null}>|null  $studioItems
+     * @param  list<array<string, mixed>>|null  $studioItemSnapshots  when set, used instead of live catalog (reschedule)
      * @return array<string, mixed>
      */
     public function calculateQuote(
@@ -63,6 +67,8 @@ class PricingService
         ?array $days = null,
         array $accessories = [],
         bool $useMaxPoints = false,
+        ?array $studioItems = null,
+        ?array $studioItemSnapshots = null,
     ): array {
         if ($endAt->lte($startAt)) {
             throw new BusinessException('End time must be after start time.', 'invalid_time_range');
@@ -236,6 +242,43 @@ class PricingService
             $subtotal += $accessoryLines['subtotal'];
         }
 
+        $resolvedStudioItems = [];
+        if ($packageId !== null) {
+            if ($studioItems !== null || $studioItemSnapshots !== null) {
+                throw new BusinessException(
+                    'Studio items cannot be changed on package bookings.',
+                    'studio_items_not_allowed_for_package',
+                );
+            }
+        } else {
+            $resolvedStudioItems = $studioItemSnapshots
+                ?? $this->studioItemService->resolveForBooking($studioId, $studioItems, null);
+
+            $studioAmount = (float) collect($lineItems)
+                ->where('item_type', 'studio')
+                ->sum('total_price');
+
+            $remainingDeductionBudget = max(0, $studioAmount);
+
+            foreach ($this->studioItemService->toLineItems($resolvedStudioItems) as $deductionLine) {
+                $wanted = abs((float) $deductionLine['total_price']);
+                $applied = min($wanted, $remainingDeductionBudget);
+                if ($applied <= 0) {
+                    continue;
+                }
+
+                $deductionLine['total_price'] = -round($applied, 2);
+                $deductionLine['quantity'] = $deductionLine['unit_price'] > 0
+                    ? (int) round($applied / (float) $deductionLine['unit_price'])
+                    : (int) $deductionLine['quantity'];
+                $lineItems[] = $deductionLine;
+                $subtotal -= $applied;
+                $remainingDeductionBudget -= $applied;
+            }
+
+            $subtotal = max(0, $subtotal);
+        }
+
         $discountAmount = 0.0;
         $promoDetails = null;
 
@@ -275,6 +318,7 @@ class PricingService
             'start_at' => $startAt->toIso8601String(),
             'end_at' => $endAt->toIso8601String(),
             'line_items' => $lineItems,
+            'studio_items' => $resolvedStudioItems,
             'subtotal' => round($subtotal, 2),
             'discount_amount' => round($discountAmount, 2),
             'points_discount' => round($pointsDiscount, 2),

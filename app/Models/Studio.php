@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class Studio extends Model
 {
@@ -78,9 +79,14 @@ class Studio extends Model
         return $this->hasMany(Booking::class);
     }
 
-    public function favorites(): HasMany
+    public function favorites(): MorphMany
     {
-        return $this->hasMany(Favorite::class);
+        return $this->morphMany(Favorite::class, 'favoritable');
+    }
+
+    public function items(): HasMany
+    {
+        return $this->hasMany(StudioItem::class);
     }
 
     public function savedSetups(): HasMany

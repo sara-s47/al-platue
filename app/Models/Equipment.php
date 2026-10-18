@@ -6,6 +6,7 @@ use App\Enums\EquipmentStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class Equipment extends Model
 {
@@ -50,5 +51,10 @@ class Equipment extends Model
     public function bookingEquipment(): HasMany
     {
         return $this->hasMany(BookingEquipment::class);
+    }
+
+    public function favorites(): MorphMany
+    {
+        return $this->morphMany(Favorite::class, 'favoritable');
     }
 }

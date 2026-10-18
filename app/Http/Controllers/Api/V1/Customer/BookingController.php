@@ -62,6 +62,8 @@ class BookingController extends Controller
             $endAt = $startAt->copy()->addMinutes((int) $package->duration_minutes);
         }
 
+        $studioItems = array_key_exists('studio_items', $data) ? ($data['studio_items'] ?? []) : null;
+
         $quote = $this->bookingService->createQuote(
             $request->user()->id,
             (int) $data['studio_id'],
@@ -79,6 +81,7 @@ class BookingController extends Controller
             $this->holdService->resolveOwnHoldId($data['hold_id'] ?? null, $request->user()->id),
             $data['accessories'] ?? [],
             $request->boolean('use_points'),
+            $studioItems,
         );
 
         return ApiResponse::success(new QuoteResource($quote));
@@ -87,6 +90,8 @@ class BookingController extends Controller
     public function store(CreateBookingRequest $request): JsonResponse
     {
         $data = $request->validated();
+        $studioItems = array_key_exists('studio_items', $data) ? ($data['studio_items'] ?? []) : null;
+
         $booking = $this->bookingService->createFromHold(
             (int) $data['hold_id'],
             $request->user()->id,
@@ -99,6 +104,7 @@ class BookingController extends Controller
             $data['customer_notes'] ?? null,
             $data['accessories'] ?? [],
             $request->boolean('use_points'),
+            $studioItems,
         );
 
         return ApiResponse::success(new BookingResource($booking->load(['studio', 'accessories.accessory', 'pointsTransactions'])), 'Booking created.', 201);

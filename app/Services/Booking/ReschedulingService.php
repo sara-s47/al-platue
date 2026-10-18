@@ -12,6 +12,7 @@ use App\Services\Accessory\AccessoryInventoryService;
 use App\Services\Inventory\InventoryService;
 use App\Services\Pricing\PricingService;
 use App\Services\Studio\AvailabilityService;
+use App\Services\Studio\StudioItemService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
@@ -25,6 +26,7 @@ class ReschedulingService
         protected InventoryService $inventoryService,
         protected PricingService $pricingService,
         protected AccessoryInventoryService $accessoryInventory,
+        protected StudioItemService $studioItemService,
     ) {
     }
 
@@ -123,19 +125,23 @@ class ReschedulingService
             $oldDays = $oldRange['days'];
         }
 
+        $packageId = $bookingMode === BookingMode::Daily ? null : $booking->package_id;
+        $studioItemSnapshots = $packageId ? null : $this->studioItemService->snapshotsForBooking($bookingId);
+
         $oldQuote = $this->pricingService->calculateQuote(
             (int) $booking->studio_id,
             Carbon::parse($booking->start_at),
             Carbon::parse($booking->end_at),
             $equipment,
             $hospitality,
-            $bookingMode === BookingMode::Daily ? null : $booking->package_id,
+            $packageId,
             null,
             null,
             null,
             (int) $booking->guest_count,
             $bookingMode,
             $oldDays,
+            studioItemSnapshots: $studioItemSnapshots,
         );
 
         $newQuote = $this->pricingService->calculateQuote(
@@ -144,13 +150,14 @@ class ReschedulingService
             $newEndAt,
             $equipment,
             $hospitality,
-            $bookingMode === BookingMode::Daily ? null : $booking->package_id,
+            $packageId,
             null,
             null,
             null,
             (int) $booking->guest_count,
             $bookingMode,
             $days,
+            studioItemSnapshots: $studioItemSnapshots,
         );
 
         $priceDifference = round($newQuote['total_amount'] - $oldQuote['total_amount'], 2);

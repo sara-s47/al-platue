@@ -18,6 +18,7 @@ use App\Services\Pricing\PricingService;
 use App\Services\Promotion\PromoCodeService;
 use App\Services\Studio\AvailabilityService;
 use App\Services\Studio\HoldService;
+use App\Services\Studio\StudioItemService;
 use App\Support\BookingNumberGenerator;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
@@ -43,6 +44,7 @@ class BookingService
         protected BookingNumberGenerator $bookingNumberGenerator,
         protected AccessoryInventoryService $accessoryInventory,
         protected AdminNotificationService $adminNotifications,
+        protected StudioItemService $studioItemService,
     ) {
     }
 
@@ -50,6 +52,7 @@ class BookingService
      * @param  array<int, array{id: int, quantity: int}>  $equipment
      * @param  array<int, array{id: int, quantity: int}>  $hospitality
      * @param  array<int, array{id: int, quantity: int}>  $accessories
+     * @param  list<array{id: int, quantity: int, color?: string|null}>|null  $studioItems
      * @return array<string, mixed>
      */
     public function createQuote(
@@ -69,6 +72,7 @@ class BookingService
         ?int $excludeHoldId = null,
         array $accessories = [],
         bool $useMaxPoints = false,
+        ?array $studioItems = null,
     ): array {
         $days = null;
 
@@ -140,6 +144,7 @@ class BookingService
             $days,
             $accessories,
             $useMaxPoints,
+            $studioItems,
         );
     }
 
@@ -147,6 +152,7 @@ class BookingService
      * @param  array<int, array{id: int, quantity: int}>  $equipment
      * @param  array<int, array{id: int, quantity: int}>  $hospitality
      * @param  array<int, array{id: int, quantity: int}>  $accessories
+     * @param  list<array{id: int, quantity: int, color?: string|null}>|null  $studioItems
      */
     public function createFromHold(
         int $holdId,
@@ -160,6 +166,7 @@ class BookingService
         ?string $customerNotes = null,
         array $accessories = [],
         bool $useMaxPoints = false,
+        ?array $studioItems = null,
     ): Model {
         return DB::transaction(function () use (
             $holdId,
@@ -173,6 +180,7 @@ class BookingService
             $customerNotes,
             $accessories,
             $useMaxPoints,
+            $studioItems,
         ) {
             $hold = $this->bookingHoldRepository->findOrFail($holdId);
 
@@ -204,6 +212,7 @@ class BookingService
                 $holdId,
                 $accessories,
                 $useMaxPoints,
+                $studioItems,
             );
 
             $booking = $this->bookingRepository->create([
@@ -236,6 +245,7 @@ class BookingService
                 $this->mapHospitalityForAllocation($quote['line_items']),
             );
             $this->persistAccessories($booking->id, $studioId, $quote['line_items']);
+            $this->studioItemService->persistForBooking($booking->id, $quote['studio_items'] ?? []);
 
             if ($promoCode && isset($quote['promo']['promo_code_id'])) {
                 $this->promoCodeService->apply(
@@ -437,6 +447,7 @@ class BookingService
             $equipment = $this->getBookingEquipment($bookingId);
             $hospitality = $this->getBookingHospitality($bookingId);
             $accessories = $this->getBookingAccessories($bookingId);
+            $studioItems = $this->getBookingStudioItemSelections($bookingId);
 
             if ($bookingMode === BookingMode::Daily) {
                 $daysCount = (int) Carbon::parse($original->start_at)->startOfDay()
@@ -469,6 +480,7 @@ class BookingService
                 $hospitality,
                 $bookingMode === BookingMode::Daily ? null : $original->package_id,
                 accessories: $accessories,
+                studioItems: $original->package_id ? null : $studioItems,
             );
         });
     }
@@ -652,6 +664,22 @@ class BookingService
             ->where('booking_id', $bookingId)
             ->get()
             ->map(fn ($row) => ['id' => (int) $row->hospitality_item_id, 'quantity' => (int) $row->quantity])
+            ->all();
+    }
+
+    /**
+     * @return list<array{id: int, quantity: int, color: string|null}>
+     */
+    protected function getBookingStudioItemSelections(int $bookingId): array
+    {
+        return DB::table('booking_studio_items')
+            ->where('booking_id', $bookingId)
+            ->get()
+            ->map(fn ($row) => [
+                'id' => (int) $row->studio_item_id,
+                'quantity' => (int) $row->quantity,
+                'color' => $row->color,
+            ])
             ->all();
     }
 }
