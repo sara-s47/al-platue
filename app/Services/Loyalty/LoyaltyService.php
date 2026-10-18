@@ -196,44 +196,23 @@ class LoyaltyService
 
         $rule = $this->getActiveRule(LoyaltyRuleType::Redemption);
 
+        // Soft-fail: booking/quote continues at full price when points cannot be applied.
         if (! $rule) {
-            throw new BusinessException('Points redemption is not available right now.', 'redemption_not_configured');
+            return ['points_used' => 0, 'discount' => 0.0];
         }
 
         $balance = (int) floor($this->getBalance($userId));
         $minPoints = (int) $rule->min_redemption_points;
 
         if ($balance < max(1, $minPoints)) {
-            throw new BusinessException(
-                $minPoints > 0 ? "You need at least {$minPoints} points to redeem." : 'You have no points to redeem.',
-                $minPoints > 0 ? 'min_redemption_not_met' : 'insufficient_points',
-                422,
-                null,
-                ['balance' => $balance, 'min_redemption_points' => $minPoints],
-            );
+            return ['points_used' => 0, 'discount' => 0.0];
         }
 
         if ($useMaxPoints) {
             $requestedPoints = $balance;
         } else {
-            if ($requestedPoints > $balance) {
-                throw new BusinessException(
-                    'Insufficient points balance.',
-                    'insufficient_points',
-                    422,
-                    null,
-                    ['balance' => $balance, 'requested' => $requestedPoints],
-                );
-            }
-
-            if ($requestedPoints < $minPoints) {
-                throw new BusinessException(
-                    "Minimum redemption is {$minPoints} points.",
-                    'min_redemption_not_met',
-                    422,
-                    null,
-                    ['balance' => $balance, 'min_redemption_points' => $minPoints, 'requested' => $requestedPoints],
-                );
+            if ($requestedPoints > $balance || $requestedPoints < $minPoints) {
+                return ['points_used' => 0, 'discount' => 0.0];
             }
         }
 
