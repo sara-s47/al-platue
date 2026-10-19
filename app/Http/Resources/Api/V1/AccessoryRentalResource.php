@@ -12,8 +12,8 @@ class AccessoryRentalResource extends JsonResource
         return [
             'id' => $this->id,
             'rental_number' => $this->rental_number,
-            'status' => $this->status,
-            'payment_method' => $this->payment_method,
+            'status' => $this->status instanceof \BackedEnum ? $this->status->value : $this->status,
+            'payment_method' => $this->payment_method instanceof \BackedEnum ? $this->payment_method->value : $this->payment_method,
             'start_date' => $this->start_date?->toDateString(),
             'end_date' => $this->end_date?->toDateString(),
             'days' => $this->days,

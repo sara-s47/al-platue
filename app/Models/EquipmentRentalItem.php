@@ -10,6 +10,7 @@ class EquipmentRentalItem extends Model
     protected $fillable = [
         'equipment_id',
         'equipment_rental_id',
+        'rental_order_id',
         'quantity',
         'days',
         'unit_price',
@@ -34,5 +35,10 @@ class EquipmentRentalItem extends Model
     public function rental(): BelongsTo
     {
         return $this->belongsTo(EquipmentRental::class, 'equipment_rental_id');
+    }
+
+    public function rentalOrder(): BelongsTo
+    {
+        return $this->belongsTo(RentalOrder::class, 'rental_order_id');
     }
 }

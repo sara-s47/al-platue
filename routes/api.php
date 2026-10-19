@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminContentController;
 use App\Http\Controllers\Api\V1\Admin\AdminEquipmentController;
 use App\Http\Controllers\Api\V1\Admin\AdminEquipmentRentalController;
 use App\Http\Controllers\Api\V1\Admin\AdminHospitalityController;
+use App\Http\Controllers\Api\V1\Admin\AdminRentalOrderController;
 use App\Http\Controllers\Api\V1\Admin\AdminInboxController;
 use App\Http\Controllers\Api\V1\Admin\AdminInteriorDesignerController;
 use App\Http\Controllers\Api\V1\Admin\AdminLoyaltyController;
@@ -50,6 +51,7 @@ use App\Http\Controllers\Api\V1\Customer\PackageController;
 use App\Http\Controllers\Api\V1\Customer\PaymentController;
 use App\Http\Controllers\Api\V1\Customer\ProfileController;
 use App\Http\Controllers\Api\V1\Customer\PromoCodeController;
+use App\Http\Controllers\Api\V1\Customer\RentalOrderController;
 use App\Http\Controllers\Api\V1\Customer\ReviewController;
 use App\Http\Controllers\Api\V1\Customer\SavedSetupController;
 use App\Http\Controllers\Api\V1\Customer\StudioItemController as CustomerStudioItemController;
@@ -124,6 +126,11 @@ Route::prefix('v1')->group(function () {
         Route::get('equipment-rentals/{id}', [EquipmentRentalController::class, 'show'])->whereNumber('id');
         Route::post('equipment-rentals/{id}/cancel', [EquipmentRentalController::class, 'cancel']);
 
+        Route::post('rental-orders/quote', [RentalOrderController::class, 'quote']);
+        Route::get('rental-orders', [RentalOrderController::class, 'index']);
+        Route::get('rental-orders/{id}', [RentalOrderController::class, 'show'])->whereNumber('id');
+        Route::post('rental-orders/{id}/cancel', [RentalOrderController::class, 'cancel']);
+
         Route::get('interior-designers', [InteriorDesignerController::class, 'index']);
         Route::get('interior-designers/{id}', [InteriorDesignerController::class, 'show'])->whereNumber('id');
 
@@ -140,6 +147,7 @@ Route::prefix('v1')->group(function () {
 
         Route::get('cart', [CartController::class, 'index']);
         Route::post('cart', [CartController::class, 'store']);
+        Route::post('cart/checkout', [CartController::class, 'checkout']);
         Route::delete('cart', [CartController::class, 'clear']);
         Route::put('cart/{type}/{id}', [CartController::class, 'update'])
             ->whereIn('type', ['equipment', 'accessory']);
@@ -231,7 +239,15 @@ Route::prefix('v1')->group(function () {
             Route::delete('{equipmentId}/studios/{studioId}', [AdminEquipmentController::class, 'unassign']);
         });
 
-        Route::middleware('permission:equipment.manage')->prefix('equipment-rentals')->group(function () {
+        Route::middleware('permission:equipment.manage|accessories.manage')->prefix('rental-orders')->group(function () {
+            Route::get('/', [AdminRentalOrderController::class, 'index']);
+            Route::get('{id}', [AdminRentalOrderController::class, 'show']);
+            Route::post('{id}/status', [AdminRentalOrderController::class, 'updateStatus']);
+            Route::post('{id}/mark-paid', [AdminRentalOrderController::class, 'markPaid']);
+        });
+
+        // Legacy aliases → unified rental orders
+        Route::middleware('permission:equipment.manage|accessories.manage')->prefix('equipment-rentals')->group(function () {
             Route::get('/', [AdminEquipmentRentalController::class, 'index']);
             Route::get('{id}', [AdminEquipmentRentalController::class, 'show']);
             Route::post('{id}/status', [AdminEquipmentRentalController::class, 'updateStatus']);
@@ -259,7 +275,8 @@ Route::prefix('v1')->group(function () {
             Route::get('{id}/rentals', [AdminAccessoryController::class, 'rentals']);
         });
 
-        Route::middleware('permission:accessories.manage')->prefix('accessory-rentals')->group(function () {
+        // Legacy alias → unified rental orders
+        Route::middleware('permission:equipment.manage|accessories.manage')->prefix('accessory-rentals')->group(function () {
             Route::get('/', [AdminAccessoryRentalController::class, 'index']);
             Route::get('{id}', [AdminAccessoryRentalController::class, 'show']);
             Route::post('{id}/status', [AdminAccessoryRentalController::class, 'updateStatus']);

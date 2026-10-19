@@ -65,5 +65,10 @@ class RolePermissionSeeder extends Seeder
 
         $superAdmin = Role::findByName('super_admin', 'web');
         $superAdmin->syncPermissions($this->permissions);
+
+        // Admin role gets the same manage permissions so dashboard order screens work
+        // without relying only on super_admin or per-user direct permissions.
+        $admin = Role::findByName('admin', 'web');
+        $admin->syncPermissions($this->permissions);
     }
 }

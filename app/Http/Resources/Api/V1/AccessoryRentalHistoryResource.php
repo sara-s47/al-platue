@@ -14,16 +14,18 @@ class AccessoryRentalHistoryResource extends JsonResource
     public function toArray(Request $request): array
     {
         $booking = $this->booking;
-        $rental = $this->rental;
-        $customer = $booking?->user ?? $rental?->user;
+        $order = $this->rentalOrder;
+        $customer = $booking?->user ?? $order?->user;
 
         return [
             'id' => $this->id,
             'type' => $booking ? 'with_studio' : 'standalone',
             'booking_id' => $booking?->id,
             'booking_number' => $booking?->booking_number,
-            'rental_id' => $rental?->id,
-            'rental_number' => $rental?->rental_number,
+            'order_id' => $order?->id,
+            'order_number' => $order?->order_number,
+            'rental_id' => $order?->id,
+            'rental_number' => $order?->order_number,
             'studio' => $this->studio ? [
                 'id' => $this->studio->id,
                 'name' => $this->studio->name,
@@ -34,16 +36,21 @@ class AccessoryRentalHistoryResource extends JsonResource
             ] : null,
             'start' => $booking
                 ? Carbon::parse($booking->start_at)->toIso8601String()
-                : $rental?->start_date?->toDateString(),
+                : $order?->start_date?->toDateString(),
             'end' => $booking
                 ? Carbon::parse($booking->end_at)->toIso8601String()
-                : $rental?->end_date?->toDateString(),
+                : $order?->end_date?->toDateString(),
             'days' => $this->days,
             'quantity' => $this->quantity,
             'unit_price' => $this->unit_price,
             'total_price' => $this->total_price,
-            'status' => $booking?->status ?? $rental?->status,
+            'status' => $this->statusValue($booking?->status ?? $order?->status),
             'created_at' => $this->created_at,
         ];
+    }
+
+    protected function statusValue(mixed $status): mixed
+    {
+        return $status instanceof \BackedEnum ? $status->value : $status;
     }
 }

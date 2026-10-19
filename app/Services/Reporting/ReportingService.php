@@ -37,8 +37,8 @@ class ReportingService
             ->get();
 
         $bySource = (clone $query)
-            ->selectRaw("CASE WHEN payments.booking_id IS NOT NULL THEN 'studio_bookings' ELSE 'accessory_rentals' END as source, COUNT(*) as count, COALESCE(SUM(payments.amount), 0) as total")
-            ->groupByRaw("CASE WHEN payments.booking_id IS NOT NULL THEN 'studio_bookings' ELSE 'accessory_rentals' END")
+            ->selectRaw("CASE WHEN payments.booking_id IS NOT NULL THEN 'studio_bookings' WHEN payments.rental_order_id IS NOT NULL THEN 'rental_orders' ELSE 'other' END as source, COUNT(*) as count, COALESCE(SUM(payments.amount), 0) as total")
+            ->groupByRaw("CASE WHEN payments.booking_id IS NOT NULL THEN 'studio_bookings' WHEN payments.rental_order_id IS NOT NULL THEN 'rental_orders' ELSE 'other' END")
             ->get();
 
         return [

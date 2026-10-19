@@ -3,18 +3,23 @@
 namespace App\Http\Controllers\Api\V1\Customer;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\Customer\CheckoutCartRequest;
 use App\Http\Requests\Api\V1\Customer\StoreCartItemRequest;
 use App\Http\Requests\Api\V1\Customer\UpdateCartItemRequest;
 use App\Http\Resources\Api\V1\CartItemResource;
+use App\Http\Resources\Api\V1\RentalOrderResource;
 use App\Http\Responses\ApiResponse;
 use App\Services\Engagement\CartService;
+use App\Services\Rental\RentalOrderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class CartController extends Controller
 {
-    public function __construct(protected CartService $cartService)
-    {
+    public function __construct(
+        protected CartService $cartService,
+        protected RentalOrderService $orderService,
+    ) {
     }
 
     public function index(Request $request): JsonResponse
@@ -60,5 +65,12 @@ class CartController extends Controller
         $this->cartService->clear($request->user()->id);
 
         return ApiResponse::success(message: 'Cart cleared.');
+    }
+
+    public function checkout(CheckoutCartRequest $request): JsonResponse
+    {
+        $order = $this->orderService->checkoutFromCart($request->user()->id, $request->validated());
+
+        return ApiResponse::success(new RentalOrderResource($order), 'Order created.', 201);
     }
 }

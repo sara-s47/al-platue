@@ -3,8 +3,8 @@
 namespace App\Services\Equipment;
 
 use App\Enums\BookingStatus;
-use App\Enums\EquipmentRentalStatus;
 use App\Enums\EquipmentStatus;
+use App\Enums\RentalOrderStatus;
 use App\Exceptions\BusinessException;
 use App\Models\Equipment;
 use Carbon\Carbon;
@@ -76,16 +76,17 @@ class EquipmentRentalInventoryService
             ->when($excludeBookingId, fn ($q) => $q->where('bookings.id', '!=', $excludeBookingId))
             ->sum('booking_equipment.quantity');
 
-        $fromRentals = (int) DB::table('equipment_rental_items')
-            ->join('equipment_rentals', 'equipment_rentals.id', '=', 'equipment_rental_items.equipment_rental_id')
+        $fromOrders = (int) DB::table('equipment_rental_items')
+            ->join('rental_orders', 'rental_orders.id', '=', 'equipment_rental_items.rental_order_id')
             ->where('equipment_rental_items.equipment_id', $equipmentId)
-            ->whereIn('equipment_rentals.status', $this->blockingRentalStatuses())
-            ->where('equipment_rentals.start_date', '<=', $endAt->copy()->subSecond()->toDateString())
-            ->where('equipment_rentals.end_date', '>=', $startAt->toDateString())
-            ->when($excludeRentalId, fn ($q) => $q->where('equipment_rentals.id', '!=', $excludeRentalId))
+            ->whereNotNull('equipment_rental_items.rental_order_id')
+            ->whereIn('rental_orders.status', $this->blockingRentalStatuses())
+            ->where('rental_orders.start_date', '<=', $endAt->copy()->subSecond()->toDateString())
+            ->where('rental_orders.end_date', '>=', $startAt->toDateString())
+            ->when($excludeRentalId, fn ($q) => $q->where('rental_orders.id', '!=', $excludeRentalId))
             ->sum('equipment_rental_items.quantity');
 
-        return $fromBookings + $fromRentals;
+        return $fromBookings + $fromOrders;
     }
 
     /**
@@ -149,9 +150,9 @@ class EquipmentRentalInventoryService
     public function blockingRentalStatuses(): array
     {
         return [
-            EquipmentRentalStatus::Pending->value,
-            EquipmentRentalStatus::Confirmed->value,
-            EquipmentRentalStatus::InProgress->value,
+            RentalOrderStatus::Pending->value,
+            RentalOrderStatus::Confirmed->value,
+            RentalOrderStatus::InProgress->value,
         ];
     }
 }

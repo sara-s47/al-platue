@@ -2,8 +2,8 @@
 
 namespace App\Services\Accessory;
 
-use App\Enums\AccessoryRentalStatus;
 use App\Enums\BookingStatus;
+use App\Enums\RentalOrderStatus;
 use App\Exceptions\BusinessException;
 use App\Models\Accessory;
 use Carbon\Carbon;
@@ -77,17 +77,18 @@ class AccessoryInventoryService
             ->when($excludeBookingId, fn ($q) => $q->where('bookings.id', '!=', $excludeBookingId))
             ->sum('accessory_rental_items.quantity');
 
-        // Standalone rentals cover whole days, so compare by date.
-        $fromRentals = DB::table('accessory_rental_items')
-            ->join('accessory_rentals', 'accessory_rentals.id', '=', 'accessory_rental_items.accessory_rental_id')
+        // Standalone rentals (unified rental_orders) cover whole days.
+        $fromOrders = (int) DB::table('accessory_rental_items')
+            ->join('rental_orders', 'rental_orders.id', '=', 'accessory_rental_items.rental_order_id')
             ->where('accessory_rental_items.accessory_id', $accessoryId)
-            ->whereIn('accessory_rentals.status', $this->blockingRentalStatuses())
-            ->where('accessory_rentals.start_date', '<=', $endAt->copy()->subSecond()->toDateString())
-            ->where('accessory_rentals.end_date', '>=', $startAt->toDateString())
-            ->when($excludeRentalId, fn ($q) => $q->where('accessory_rentals.id', '!=', $excludeRentalId))
+            ->whereNotNull('accessory_rental_items.rental_order_id')
+            ->whereIn('rental_orders.status', $this->blockingRentalStatuses())
+            ->where('rental_orders.start_date', '<=', $endAt->copy()->subSecond()->toDateString())
+            ->where('rental_orders.end_date', '>=', $startAt->toDateString())
+            ->when($excludeRentalId, fn ($q) => $q->where('rental_orders.id', '!=', $excludeRentalId))
             ->sum('accessory_rental_items.quantity');
 
-        return (int) $fromBookings + (int) $fromRentals;
+        return (int) $fromBookings + $fromOrders;
     }
 
     /**
@@ -153,9 +154,9 @@ class AccessoryInventoryService
     public function blockingRentalStatuses(): array
     {
         return [
-            AccessoryRentalStatus::Pending->value,
-            AccessoryRentalStatus::Confirmed->value,
-            AccessoryRentalStatus::InProgress->value,
+            RentalOrderStatus::Pending->value,
+            RentalOrderStatus::Confirmed->value,
+            RentalOrderStatus::InProgress->value,
         ];
     }
 }

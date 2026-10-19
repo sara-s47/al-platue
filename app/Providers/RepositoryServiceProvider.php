@@ -28,6 +28,7 @@ use App\Repositories\Contracts\PointsTransactionRepositoryInterface;
 use App\Repositories\Contracts\PricingRuleRepositoryInterface;
 use App\Repositories\Contracts\PromoCodeRepositoryInterface;
 use App\Repositories\Contracts\RefundRepositoryInterface;
+use App\Repositories\Contracts\RentalOrderRepositoryInterface;
 use App\Repositories\Contracts\ReschedulePolicyRepositoryInterface;
 use App\Repositories\Contracts\ReviewDimensionRepositoryInterface;
 use App\Repositories\Contracts\ReviewRepositoryInterface;
@@ -64,6 +65,7 @@ use App\Repositories\Eloquent\EloquentPointsTransactionRepository;
 use App\Repositories\Eloquent\EloquentPricingRuleRepository;
 use App\Repositories\Eloquent\EloquentPromoCodeRepository;
 use App\Repositories\Eloquent\EloquentRefundRepository;
+use App\Repositories\Eloquent\EloquentRentalOrderRepository;
 use App\Repositories\Eloquent\EloquentReschedulePolicyRepository;
 use App\Repositories\Eloquent\EloquentReviewDimensionRepository;
 use App\Repositories\Eloquent\EloquentReviewRepository;
@@ -119,6 +121,7 @@ class RepositoryServiceProvider extends ServiceProvider
         $this->app->bind(AuditLogRepositoryInterface::class, EloquentAuditLogRepository::class);
         $this->app->bind(AccessoryRepositoryInterface::class, EloquentAccessoryRepository::class);
         $this->app->bind(AccessoryRentalRepositoryInterface::class, EloquentAccessoryRentalRepository::class);
+        $this->app->bind(RentalOrderRepositoryInterface::class, EloquentRentalOrderRepository::class);
         $this->app->bind(InteriorDesignerRepositoryInterface::class, EloquentInteriorDesignerRepository::class);
     }
 }

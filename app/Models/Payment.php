@@ -14,6 +14,7 @@ class Payment extends Model
         'booking_id',
         'accessory_rental_id',
         'equipment_rental_id',
+        'rental_order_id',
         'type',
         'amount',
         'status',
@@ -45,6 +46,11 @@ class Payment extends Model
     public function equipmentRental(): BelongsTo
     {
         return $this->belongsTo(EquipmentRental::class);
+    }
+
+    public function rentalOrder(): BelongsTo
+    {
+        return $this->belongsTo(RentalOrder::class);
     }
 
     public function refunds(): HasMany

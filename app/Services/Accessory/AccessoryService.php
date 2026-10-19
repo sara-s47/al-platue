@@ -2,8 +2,8 @@
 
 namespace App\Services\Accessory;
 
-use App\Enums\AccessoryRentalStatus;
 use App\Enums\BookingStatus;
+use App\Enums\RentalOrderStatus;
 use App\Exceptions\BusinessException;
 use App\Models\Accessory;
 use App\Models\AccessoryImage;
@@ -98,20 +98,20 @@ class AccessoryService
 
         return AccessoryRentalItem::query()
             ->where('accessory_id', $accessoryId)
-            ->with(['booking.user', 'rental.user', 'studio'])
+            ->with(['booking.user', 'rentalOrder.user', 'studio'])
             ->when($type === 'with_studio', fn ($q) => $q->whereNotNull('booking_id'))
-            ->when($type === 'standalone', fn ($q) => $q->whereNotNull('accessory_rental_id'))
+            ->when($type === 'standalone', fn ($q) => $q->whereNotNull('rental_order_id'))
             ->when($status, fn ($q) => $q->where(function ($q) use ($status) {
                 $q->whereHas('booking', fn ($b) => $b->where('status', $status))
-                    ->orWhereHas('rental', fn ($r) => $r->where('status', $status));
+                    ->orWhereHas('rentalOrder', fn ($r) => $r->where('status', $status));
             }))
             ->when($from, fn ($q) => $q->where(function ($q) use ($from) {
                 $q->whereHas('booking', fn ($b) => $b->whereDate('end_at', '>=', $from))
-                    ->orWhereHas('rental', fn ($r) => $r->where('end_date', '>=', $from));
+                    ->orWhereHas('rentalOrder', fn ($r) => $r->where('end_date', '>=', $from));
             }))
             ->when($to, fn ($q) => $q->where(function ($q) use ($to) {
                 $q->whereHas('booking', fn ($b) => $b->whereDate('start_at', '<=', $to))
-                    ->orWhereHas('rental', fn ($r) => $r->where('start_date', '<=', $to));
+                    ->orWhereHas('rentalOrder', fn ($r) => $r->where('start_date', '<=', $to));
             }))
             ->orderByDesc('id')
             ->paginate($perPage);
@@ -132,15 +132,15 @@ class AccessoryService
 
         $rows = DB::table('accessory_rental_items')
             ->leftJoin('bookings', 'bookings.id', '=', 'accessory_rental_items.booking_id')
-            ->leftJoin('accessory_rentals', 'accessory_rentals.id', '=', 'accessory_rental_items.accessory_rental_id')
+            ->leftJoin('rental_orders', 'rental_orders.id', '=', 'accessory_rental_items.rental_order_id')
             ->whereIn('accessory_rental_items.accessory_id', $ids)
             ->where(function ($q) {
                 $q->where(function ($q) {
                     $q->whereNotNull('accessory_rental_items.booking_id')
                         ->where('bookings.status', '!=', BookingStatus::Cancelled->value);
                 })->orWhere(function ($q) {
-                    $q->whereNotNull('accessory_rental_items.accessory_rental_id')
-                        ->where('accessory_rentals.status', '!=', AccessoryRentalStatus::Cancelled->value);
+                    $q->whereNotNull('accessory_rental_items.rental_order_id')
+                        ->where('rental_orders.status', '!=', RentalOrderStatus::Cancelled->value);
                 });
             })
             ->groupBy('accessory_rental_items.accessory_id')

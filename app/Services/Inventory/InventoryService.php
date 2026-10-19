@@ -3,8 +3,8 @@
 namespace App\Services\Inventory;
 
 use App\Enums\BookingStatus;
-use App\Enums\EquipmentRentalStatus;
 use App\Enums\EquipmentStatus;
+use App\Enums\RentalOrderStatus;
 use App\Exceptions\BusinessException;
 use App\Repositories\Contracts\EquipmentRepositoryInterface;
 use App\Repositories\Contracts\HospitalityItemRepositoryInterface;
@@ -331,19 +331,20 @@ class InventoryService
             return $fromBookings;
         }
 
-        $fromRentals = (int) DB::table('equipment_rental_items')
-            ->join('equipment_rentals', 'equipment_rentals.id', '=', 'equipment_rental_items.equipment_rental_id')
+        $fromOrders = (int) DB::table('equipment_rental_items')
+            ->join('rental_orders', 'rental_orders.id', '=', 'equipment_rental_items.rental_order_id')
             ->where('equipment_rental_items.equipment_id', $equipmentId)
-            ->whereIn('equipment_rentals.status', [
-                EquipmentRentalStatus::Pending->value,
-                EquipmentRentalStatus::Confirmed->value,
-                EquipmentRentalStatus::InProgress->value,
+            ->whereNotNull('equipment_rental_items.rental_order_id')
+            ->whereIn('rental_orders.status', [
+                RentalOrderStatus::Pending->value,
+                RentalOrderStatus::Confirmed->value,
+                RentalOrderStatus::InProgress->value,
             ])
-            ->where('equipment_rentals.start_date', '<=', $endAt->copy()->subSecond()->toDateString())
-            ->where('equipment_rentals.end_date', '>=', $startAt->toDateString())
+            ->where('rental_orders.start_date', '<=', $endAt->copy()->subSecond()->toDateString())
+            ->where('rental_orders.end_date', '>=', $startAt->toDateString())
             ->sum('equipment_rental_items.quantity');
 
-        return $fromBookings + $fromRentals;
+        return $fromBookings + $fromOrders;
     }
 
     protected function getAllocatedHospitalityQuantity(

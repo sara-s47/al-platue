@@ -112,9 +112,16 @@ class AdminEquipmentController extends Controller
         $filters = $request->validate([
             'type' => 'nullable|in:standalone,with_studio',
             'status' => 'nullable|string|max:20',
-            'from' => 'nullable|date_format:Y-m-d',
-            'to' => 'nullable|date_format:Y-m-d',
+            'from' => 'nullable|date',
+            'to' => 'nullable|date',
         ]);
+
+        if (! empty($filters['from'])) {
+            $filters['from'] = Carbon::parse($filters['from'])->toDateString();
+        }
+        if (! empty($filters['to'])) {
+            $filters['to'] = Carbon::parse($filters['to'])->toDateString();
+        }
 
         $p = $this->equipmentService->rentalHistory($id, $filters, (int) $request->get('per_page', 15));
 

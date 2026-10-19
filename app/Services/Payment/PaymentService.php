@@ -6,14 +6,12 @@ use App\Enums\BookingStatus;
 use App\Enums\PaymentStatus;
 use App\Enums\PaymentType;
 use App\Exceptions\BusinessException;
-use App\Models\AccessoryRental;
 use App\Models\Booking;
-use App\Models\EquipmentRental;
+use App\Models\RentalOrder;
 use App\Repositories\Contracts\BookingRepositoryInterface;
 use App\Repositories\Contracts\PaymentRepositoryInterface;
-use App\Services\Accessory\AccessoryRentalService;
 use App\Services\Booking\BookingService;
-use App\Services\Equipment\EquipmentRentalService;
+use App\Services\Rental\RentalOrderService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
@@ -24,8 +22,7 @@ class PaymentService
         protected BookingRepositoryInterface $bookingRepository,
         protected PaymobGateway $paymobGateway,
         protected BookingService $bookingService,
-        protected AccessoryRentalService $accessoryRentalService,
-        protected EquipmentRentalService $equipmentRentalService,
+        protected RentalOrderService $rentalOrderService,
     ) {
     }
 
@@ -165,16 +162,9 @@ class PaymentService
                 'paid_at' => now(),
             ]);
 
-            if ($payment->accessory_rental_id) {
-                $rental = AccessoryRental::query()->lockForUpdate()->findOrFail((int) $payment->accessory_rental_id);
-                $this->accessoryRentalService->applyPayment($rental, (float) $payment->amount);
-
-                return ['status' => 'processed', 'payment_id' => (int) $payment->id];
-            }
-
-            if ($payment->equipment_rental_id) {
-                $rental = EquipmentRental::query()->lockForUpdate()->findOrFail((int) $payment->equipment_rental_id);
-                $this->equipmentRentalService->applyPayment($rental, (float) $payment->amount);
+            if ($payment->rental_order_id) {
+                $order = RentalOrder::query()->lockForUpdate()->findOrFail((int) $payment->rental_order_id);
+                $this->rentalOrderService->applyPayment($order, (float) $payment->amount);
 
                 return ['status' => 'processed', 'payment_id' => (int) $payment->id];
             }

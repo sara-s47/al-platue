@@ -9,7 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * One row of an equipment's rental history (standalone rental item or booking allocation).
+ * One row of an equipment's rental history (standalone order item or booking allocation).
  */
 class EquipmentRentalHistoryResource extends JsonResource
 {
@@ -23,6 +23,8 @@ class EquipmentRentalHistoryResource extends JsonResource
                 'type' => 'with_studio',
                 'booking_id' => $booking?->id,
                 'booking_number' => $booking?->booking_number,
+                'order_id' => null,
+                'order_number' => null,
                 'rental_id' => null,
                 'rental_number' => null,
                 'studio' => $booking?->studio ? [
@@ -39,34 +41,36 @@ class EquipmentRentalHistoryResource extends JsonResource
                 'quantity' => $this->quantity,
                 'unit_price' => $this->unit_price,
                 'total_price' => $this->total_price,
-                'status' => $booking?->status,
+                'status' => $booking?->status instanceof \BackedEnum ? $booking->status->value : $booking?->status,
                 'created_at' => $this->created_at,
             ];
         }
 
         /** @var EquipmentRentalItem $item */
         $item = $this->resource;
-        $rental = $item->rental;
+        $order = $item->rentalOrder;
 
         return [
             'id' => $item->id,
             'type' => 'standalone',
             'booking_id' => null,
             'booking_number' => null,
-            'rental_id' => $rental?->id,
-            'rental_number' => $rental?->rental_number,
+            'order_id' => $order?->id,
+            'order_number' => $order?->order_number,
+            'rental_id' => $order?->id,
+            'rental_number' => $order?->order_number,
             'studio' => null,
-            'customer' => $rental?->user ? [
-                'id' => $rental->user->id,
-                'name' => $rental->user->name,
+            'customer' => $order?->user ? [
+                'id' => $order->user->id,
+                'name' => $order->user->name,
             ] : null,
-            'start' => $rental?->start_date?->toDateString(),
-            'end' => $rental?->end_date?->toDateString(),
+            'start' => $order?->start_date?->toDateString(),
+            'end' => $order?->end_date?->toDateString(),
             'days' => $item->days,
             'quantity' => $item->quantity,
             'unit_price' => $item->unit_price,
             'total_price' => $item->total_price,
-            'status' => $rental?->status,
+            'status' => $order?->status instanceof \BackedEnum ? $order->status->value : $order?->status,
             'created_at' => $item->created_at,
         ];
     }

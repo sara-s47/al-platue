@@ -119,10 +119,10 @@ class EquipmentService
 
         return EquipmentRentalItem::query()
             ->where('equipment_id', $equipmentId)
-            ->with(['rental.user'])
-            ->when($status, fn ($q) => $q->whereHas('rental', fn ($r) => $r->where('status', $status)))
-            ->when($from, fn ($q) => $q->whereHas('rental', fn ($r) => $r->where('end_date', '>=', $from)))
-            ->when($to, fn ($q) => $q->whereHas('rental', fn ($r) => $r->where('start_date', '<=', $to)))
+            ->with(['rentalOrder.user'])
+            ->when($status, fn ($q) => $q->whereHas('rentalOrder', fn ($r) => $r->where('status', $status)))
+            ->when($from, fn ($q) => $q->whereHas('rentalOrder', fn ($r) => $r->where('end_date', '>=', $from)))
+            ->when($to, fn ($q) => $q->whereHas('rentalOrder', fn ($r) => $r->where('start_date', '<=', $to)))
             ->orderByDesc('id')
             ->paginate($perPage);
     }
