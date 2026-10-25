@@ -179,20 +179,34 @@ return new class extends Migration
         }
 
         $existing = DB::table('orders')->whereNotNull('booking_id')->pluck('booking_id')->all();
+        $validUserIds = array_fill_keys(
+            DB::table('users')->pluck('id')->map(fn ($id) => (int) $id)->all(),
+            true,
+        );
 
-        DB::table('bookings')->orderBy('id')->chunkById(50, function ($bookings) use ($existing) {
+        DB::table('bookings')->orderBy('id')->chunkById(50, function ($bookings) use (&$existing, $validUserIds) {
             foreach ($bookings as $booking) {
                 if (in_array($booking->id, $existing, true)) {
                     continue;
                 }
 
+                // Skip orphaned bookings (user deleted) — FK on orders.user_id would fail.
+                if (! isset($validUserIds[(int) $booking->user_id])) {
+                    continue;
+                }
+
                 $number = $booking->booking_number ?? ('BK-'.$booking->id);
                 if (DB::table('orders')->where('order_number', $number)->exists()) {
-                    $number = 'BK-'.$booking->id.'-'.$booking->booking_number;
+                    $number = 'BK-'.$booking->id.'-'.($booking->booking_number ?? $booking->id);
                 }
 
                 $start = isset($booking->start_at) ? substr((string) $booking->start_at, 0, 10) : null;
                 $end = isset($booking->end_at) ? substr((string) $booking->end_at, 0, 10) : $start;
+
+                $createdBy = $booking->created_by ?? null;
+                if ($createdBy !== null && ! isset($validUserIds[(int) $createdBy])) {
+                    $createdBy = null;
+                }
 
                 DB::table('orders')->insert([
                     'order_number' => $number,
@@ -210,11 +224,13 @@ return new class extends Migration
                     'paid_amount' => $booking->paid_amount ?? 0,
                     'remaining_amount' => $booking->remaining_amount ?? 0,
                     'customer_notes' => $booking->customer_notes ?? null,
-                    'created_by' => $booking->created_by ?? null,
+                    'created_by' => $createdBy,
                     'paint_surcharge' => 0,
                     'created_at' => $booking->created_at ?? now(),
                     'updated_at' => $booking->updated_at ?? now(),
                 ]);
+
+                $existing[] = $booking->id;
             }
         });
     }
