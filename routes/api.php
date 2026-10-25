@@ -12,7 +12,12 @@ use App\Http\Controllers\Api\V1\Admin\AdminContentController;
 use App\Http\Controllers\Api\V1\Admin\AdminEquipmentController;
 use App\Http\Controllers\Api\V1\Admin\AdminEquipmentRentalController;
 use App\Http\Controllers\Api\V1\Admin\AdminHospitalityController;
+use App\Http\Controllers\Api\V1\Admin\AdminCaravanController;
+use App\Http\Controllers\Api\V1\Admin\AdminGeneratorController;
+use App\Http\Controllers\Api\V1\Admin\AdminOrderController;
+use App\Http\Controllers\Api\V1\Admin\AdminPortableBathroomController;
 use App\Http\Controllers\Api\V1\Admin\AdminRentalOrderController;
+use App\Http\Controllers\Api\V1\Admin\AdminStudioPaintColorController;
 use App\Http\Controllers\Api\V1\Admin\AdminInboxController;
 use App\Http\Controllers\Api\V1\Admin\AdminInteriorDesignerController;
 use App\Http\Controllers\Api\V1\Admin\AdminLoyaltyController;
@@ -37,8 +42,12 @@ use App\Http\Controllers\Api\V1\Customer\AccessoryRentalController;
 use App\Http\Controllers\Api\V1\Customer\AvailabilityController;
 use App\Http\Controllers\Api\V1\Customer\BookingController;
 use App\Http\Controllers\Api\V1\Customer\BookingHoldController;
+use App\Http\Controllers\Api\V1\Customer\CaravanController;
 use App\Http\Controllers\Api\V1\Customer\CartController;
 use App\Http\Controllers\Api\V1\Customer\CategoryController;
+use App\Http\Controllers\Api\V1\Customer\GeneratorController;
+use App\Http\Controllers\Api\V1\Customer\OrderController;
+use App\Http\Controllers\Api\V1\Customer\PortableBathroomController;
 use App\Http\Controllers\Api\V1\Customer\ContentController;
 use App\Http\Controllers\Api\V1\Customer\EquipmentController;
 use App\Http\Controllers\Api\V1\Customer\EquipmentRentalController;
@@ -110,6 +119,18 @@ Route::prefix('v1')->group(function () {
         Route::get('accessories/availability', [AccessoryController::class, 'availability']);
         Route::get('accessories/{id}', [AccessoryController::class, 'show'])->whereNumber('id');
 
+        Route::get('portable-bathrooms', [PortableBathroomController::class, 'index']);
+        Route::get('portable-bathrooms/availability', [PortableBathroomController::class, 'availability']);
+        Route::get('portable-bathrooms/{id}', [PortableBathroomController::class, 'show'])->whereNumber('id');
+
+        Route::get('caravans', [CaravanController::class, 'index']);
+        Route::get('caravans/availability', [CaravanController::class, 'availability']);
+        Route::get('caravans/{id}', [CaravanController::class, 'show'])->whereNumber('id');
+
+        Route::get('generators', [GeneratorController::class, 'index']);
+        Route::get('generators/availability', [GeneratorController::class, 'availability']);
+        Route::get('generators/{id}', [GeneratorController::class, 'show'])->whereNumber('id');
+
         Route::post('accessory-rentals/quote', [AccessoryRentalController::class, 'quote']);
         Route::get('accessory-rentals', [AccessoryRentalController::class, 'index']);
         Route::post('accessory-rentals', [AccessoryRentalController::class, 'store']);
@@ -126,6 +147,12 @@ Route::prefix('v1')->group(function () {
         Route::get('equipment-rentals/{id}', [EquipmentRentalController::class, 'show'])->whereNumber('id');
         Route::post('equipment-rentals/{id}/cancel', [EquipmentRentalController::class, 'cancel']);
 
+        Route::post('orders/quote', [OrderController::class, 'quote']);
+        Route::get('orders', [OrderController::class, 'index']);
+        Route::get('orders/{id}', [OrderController::class, 'show'])->whereNumber('id');
+        Route::post('orders/{id}/cancel', [OrderController::class, 'cancel']);
+
+        // Legacy aliases
         Route::post('rental-orders/quote', [RentalOrderController::class, 'quote']);
         Route::get('rental-orders', [RentalOrderController::class, 'index']);
         Route::get('rental-orders/{id}', [RentalOrderController::class, 'show'])->whereNumber('id');
@@ -150,9 +177,9 @@ Route::prefix('v1')->group(function () {
         Route::post('cart/checkout', [CartController::class, 'checkout']);
         Route::delete('cart', [CartController::class, 'clear']);
         Route::put('cart/{type}/{id}', [CartController::class, 'update'])
-            ->whereIn('type', ['equipment', 'accessory']);
+            ->whereIn('type', ['equipment', 'accessory', 'studio', 'portable_bathroom', 'caravan', 'generator']);
         Route::delete('cart/{type}/{id}', [CartController::class, 'destroy'])
-            ->whereIn('type', ['equipment', 'accessory']);
+            ->whereIn('type', ['equipment', 'accessory', 'studio', 'portable_bathroom', 'caravan', 'generator']);
 
         Route::apiResource('saved-setups', SavedSetupController::class)->except(['show']);
 
@@ -201,6 +228,10 @@ Route::prefix('v1')->group(function () {
             Route::put('{studioId}/items/{id}', [AdminStudioItemController::class, 'update']);
             Route::post('{studioId}/items/{id}', [AdminStudioItemController::class, 'update']);
             Route::delete('{studioId}/items/{id}', [AdminStudioItemController::class, 'destroy']);
+            Route::get('{studioId}/paint-colors', [AdminStudioPaintColorController::class, 'index']);
+            Route::post('{studioId}/paint-colors', [AdminStudioPaintColorController::class, 'store']);
+            Route::put('{studioId}/paint-colors/{id}', [AdminStudioPaintColorController::class, 'update']);
+            Route::delete('{studioId}/paint-colors/{id}', [AdminStudioPaintColorController::class, 'destroy']);
         });
 
         Route::middleware('permission:users.manage')->prefix('users')->group(function () {
@@ -239,14 +270,21 @@ Route::prefix('v1')->group(function () {
             Route::delete('{equipmentId}/studios/{studioId}', [AdminEquipmentController::class, 'unassign']);
         });
 
-        Route::middleware('permission:equipment.manage|accessories.manage')->prefix('rental-orders')->group(function () {
+        Route::middleware('permission:equipment.manage|accessories.manage|portable-bathrooms.manage|caravans.manage|generators.manage|bookings.manage')->prefix('orders')->group(function () {
+            Route::get('/', [AdminOrderController::class, 'index']);
+            Route::get('{id}', [AdminOrderController::class, 'show']);
+            Route::post('{id}/status', [AdminOrderController::class, 'updateStatus']);
+            Route::post('{id}/mark-paid', [AdminOrderController::class, 'markPaid']);
+        });
+
+        // Legacy aliases → unified orders
+        Route::middleware('permission:equipment.manage|accessories.manage|portable-bathrooms.manage|caravans.manage|generators.manage|bookings.manage')->prefix('rental-orders')->group(function () {
             Route::get('/', [AdminRentalOrderController::class, 'index']);
             Route::get('{id}', [AdminRentalOrderController::class, 'show']);
             Route::post('{id}/status', [AdminRentalOrderController::class, 'updateStatus']);
             Route::post('{id}/mark-paid', [AdminRentalOrderController::class, 'markPaid']);
         });
 
-        // Legacy aliases → unified rental orders
         Route::middleware('permission:equipment.manage|accessories.manage')->prefix('equipment-rentals')->group(function () {
             Route::get('/', [AdminEquipmentRentalController::class, 'index']);
             Route::get('{id}', [AdminEquipmentRentalController::class, 'show']);
@@ -275,7 +313,37 @@ Route::prefix('v1')->group(function () {
             Route::get('{id}/rentals', [AdminAccessoryController::class, 'rentals']);
         });
 
-        // Legacy alias → unified rental orders
+        Route::middleware('permission:portable-bathrooms.manage')->prefix('portable-bathrooms')->group(function () {
+            Route::get('/', [AdminPortableBathroomController::class, 'index']);
+            Route::post('/', [AdminPortableBathroomController::class, 'store']);
+            Route::get('{id}', [AdminPortableBathroomController::class, 'show']);
+            Route::put('{id}', [AdminPortableBathroomController::class, 'update']);
+            Route::post('{id}', [AdminPortableBathroomController::class, 'update']);
+            Route::delete('{id}', [AdminPortableBathroomController::class, 'destroy']);
+            Route::get('{id}/orders', [AdminPortableBathroomController::class, 'orders']);
+        });
+
+        Route::middleware('permission:caravans.manage')->prefix('caravans')->group(function () {
+            Route::get('/', [AdminCaravanController::class, 'index']);
+            Route::post('/', [AdminCaravanController::class, 'store']);
+            Route::get('{id}', [AdminCaravanController::class, 'show']);
+            Route::put('{id}', [AdminCaravanController::class, 'update']);
+            Route::post('{id}', [AdminCaravanController::class, 'update']);
+            Route::delete('{id}', [AdminCaravanController::class, 'destroy']);
+            Route::get('{id}/orders', [AdminCaravanController::class, 'orders']);
+        });
+
+        Route::middleware('permission:generators.manage')->prefix('generators')->group(function () {
+            Route::get('/', [AdminGeneratorController::class, 'index']);
+            Route::post('/', [AdminGeneratorController::class, 'store']);
+            Route::get('{id}', [AdminGeneratorController::class, 'show']);
+            Route::put('{id}', [AdminGeneratorController::class, 'update']);
+            Route::post('{id}', [AdminGeneratorController::class, 'update']);
+            Route::delete('{id}', [AdminGeneratorController::class, 'destroy']);
+            Route::get('{id}/orders', [AdminGeneratorController::class, 'orders']);
+        });
+
+        // Legacy alias → unified orders
         Route::middleware('permission:equipment.manage|accessories.manage')->prefix('accessory-rentals')->group(function () {
             Route::get('/', [AdminAccessoryRentalController::class, 'index']);
             Route::get('{id}', [AdminAccessoryRentalController::class, 'show']);

@@ -34,7 +34,7 @@ class AdminStudioController extends Controller
 
     public function show(int $id): JsonResponse
     {
-        return ApiResponse::success(new StudioResource($this->studioService->find($id)->load('images')));
+        return ApiResponse::success(new StudioResource($this->studioService->find($id)->load(['images', 'paintColors'])));
     }
 
     public function update(UpdateStudioRequest $request, int $id): JsonResponse

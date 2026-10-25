@@ -27,9 +27,12 @@ class StudioResource extends JsonResource
             'rules' => $this->rules,
             'is_active' => $this->is_active,
             'sort_order' => $this->sort_order,
+            'paint_pricing_mode' => $this->paint_pricing_mode ?? 'flat_extra',
+            'flat_extra_paint_price' => $this->flat_extra_paint_price,
             'image' => $primary,
             'category' => new CategoryResource($this->whenLoaded('category')),
             'images' => StudioImageResource::collection($this->whenLoaded('images')),
+            'paint_colors' => StudioPaintColorResource::collection($this->whenLoaded('paintColors')),
         ];
     }
 }

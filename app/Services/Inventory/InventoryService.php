@@ -331,17 +331,18 @@ class InventoryService
             return $fromBookings;
         }
 
+        $orderFk = \Illuminate\Support\Facades\Schema::hasColumn('equipment_rental_items', 'order_id') ? 'order_id' : 'rental_order_id';
         $fromOrders = (int) DB::table('equipment_rental_items')
-            ->join('rental_orders', 'rental_orders.id', '=', 'equipment_rental_items.rental_order_id')
+            ->join('orders', 'orders.id', '=', "equipment_rental_items.{$orderFk}")
             ->where('equipment_rental_items.equipment_id', $equipmentId)
-            ->whereNotNull('equipment_rental_items.rental_order_id')
-            ->whereIn('rental_orders.status', [
+            ->whereNotNull("equipment_rental_items.{$orderFk}")
+            ->whereIn('orders.status', [
                 RentalOrderStatus::Pending->value,
                 RentalOrderStatus::Confirmed->value,
                 RentalOrderStatus::InProgress->value,
             ])
-            ->where('rental_orders.start_date', '<=', $endAt->copy()->subSecond()->toDateString())
-            ->where('rental_orders.end_date', '>=', $startAt->toDateString())
+            ->where('orders.start_date', '<=', $endAt->copy()->subSecond()->toDateString())
+            ->where('orders.end_date', '>=', $startAt->toDateString())
             ->sum('equipment_rental_items.quantity');
 
         return $fromBookings + $fromOrders;

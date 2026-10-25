@@ -7,10 +7,10 @@ use App\Http\Requests\Api\V1\Customer\CheckoutCartRequest;
 use App\Http\Requests\Api\V1\Customer\StoreCartItemRequest;
 use App\Http\Requests\Api\V1\Customer\UpdateCartItemRequest;
 use App\Http\Resources\Api\V1\CartItemResource;
-use App\Http\Resources\Api\V1\RentalOrderResource;
+use App\Http\Resources\Api\V1\OrderResource;
 use App\Http\Responses\ApiResponse;
 use App\Services\Engagement\CartService;
-use App\Services\Rental\RentalOrderService;
+use App\Services\Order\OrderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -18,7 +18,7 @@ class CartController extends Controller
 {
     public function __construct(
         protected CartService $cartService,
-        protected RentalOrderService $orderService,
+        protected OrderService $orderService,
     ) {
     }
 
@@ -31,11 +31,13 @@ class CartController extends Controller
 
     public function store(StoreCartItemRequest $request): JsonResponse
     {
+        $data = $request->validated();
         $item = $this->cartService->addOrUpdate(
             $request->user()->id,
-            (string) $request->validated('type'),
-            (int) $request->validated('id'),
-            (int) $request->validated('quantity'),
+            (string) $data['type'],
+            (int) $data['id'],
+            (int) ($data['quantity'] ?? 1),
+            $data['meta'] ?? null,
         );
 
         return ApiResponse::success(new CartItemResource($item), 'Added to cart.', 201);
@@ -43,11 +45,13 @@ class CartController extends Controller
 
     public function update(UpdateCartItemRequest $request, string $type, int $id): JsonResponse
     {
+        $data = $request->validated();
         $item = $this->cartService->setQuantity(
             $request->user()->id,
             $type,
             $id,
-            (int) $request->validated('quantity'),
+            (int) $data['quantity'],
+            $data['meta'] ?? null,
         );
 
         return ApiResponse::success(new CartItemResource($item), 'Cart updated.');
@@ -71,6 +75,6 @@ class CartController extends Controller
     {
         $order = $this->orderService->checkoutFromCart($request->user()->id, $request->validated());
 
-        return ApiResponse::success(new RentalOrderResource($order), 'Order created.', 201);
+        return ApiResponse::success(new OrderResource($order), 'Order created.', 201);
     }
 }

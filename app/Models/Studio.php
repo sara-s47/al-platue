@@ -21,6 +21,8 @@ class Studio extends Model
         'rules',
         'is_active',
         'sort_order',
+        'paint_pricing_mode',
+        'flat_extra_paint_price',
     ];
 
     protected function casts(): array
@@ -31,6 +33,7 @@ class Studio extends Model
             'longitude' => 'decimal:7',
             'is_active' => 'boolean',
             'sort_order' => 'integer',
+            'flat_extra_paint_price' => 'decimal:2',
         ];
     }
 
@@ -87,6 +90,11 @@ class Studio extends Model
     public function items(): HasMany
     {
         return $this->hasMany(StudioItem::class);
+    }
+
+    public function paintColors(): HasMany
+    {
+        return $this->hasMany(StudioPaintColor::class)->orderBy('sort_order')->orderBy('id');
     }
 
     public function savedSetups(): HasMany

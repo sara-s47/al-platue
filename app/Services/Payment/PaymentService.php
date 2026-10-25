@@ -7,7 +7,6 @@ use App\Enums\PaymentStatus;
 use App\Enums\PaymentType;
 use App\Exceptions\BusinessException;
 use App\Models\Booking;
-use App\Models\RentalOrder;
 use App\Repositories\Contracts\BookingRepositoryInterface;
 use App\Repositories\Contracts\PaymentRepositoryInterface;
 use App\Services\Booking\BookingService;
@@ -162,8 +161,9 @@ class PaymentService
                 'paid_at' => now(),
             ]);
 
-            if ($payment->rental_order_id) {
-                $order = RentalOrder::query()->lockForUpdate()->findOrFail((int) $payment->rental_order_id);
+            $orderId = $payment->order_id ?? $payment->rental_order_id;
+            if ($orderId) {
+                $order = \App\Models\Order::query()->lockForUpdate()->findOrFail((int) $orderId);
                 $this->rentalOrderService->applyPayment($order, (float) $payment->amount);
 
                 return ['status' => 'processed', 'payment_id' => (int) $payment->id];

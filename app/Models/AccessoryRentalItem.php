@@ -12,6 +12,7 @@ class AccessoryRentalItem extends Model
         'booking_id',
         'accessory_rental_id',
         'rental_order_id',
+        'order_id',
         'studio_id',
         'quantity',
         'days',
@@ -46,7 +47,12 @@ class AccessoryRentalItem extends Model
 
     public function rentalOrder(): BelongsTo
     {
-        return $this->belongsTo(RentalOrder::class, 'rental_order_id');
+        return $this->belongsTo(Order::class, 'order_id');
+    }
+
+    public function order(): BelongsTo
+    {
+        return $this->belongsTo(Order::class, 'order_id');
     }
 
     public function studio(): BelongsTo

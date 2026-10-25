@@ -9,6 +9,7 @@ use App\Exceptions\BusinessException;
 use App\Models\Equipment;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class EquipmentRentalInventoryService
 {
@@ -76,14 +77,15 @@ class EquipmentRentalInventoryService
             ->when($excludeBookingId, fn ($q) => $q->where('bookings.id', '!=', $excludeBookingId))
             ->sum('booking_equipment.quantity');
 
+        $orderFk = Schema::hasColumn('equipment_rental_items', 'order_id') ? 'order_id' : 'rental_order_id';
         $fromOrders = (int) DB::table('equipment_rental_items')
-            ->join('rental_orders', 'rental_orders.id', '=', 'equipment_rental_items.rental_order_id')
+            ->join('orders', 'orders.id', '=', "equipment_rental_items.{$orderFk}")
             ->where('equipment_rental_items.equipment_id', $equipmentId)
-            ->whereNotNull('equipment_rental_items.rental_order_id')
-            ->whereIn('rental_orders.status', $this->blockingRentalStatuses())
-            ->where('rental_orders.start_date', '<=', $endAt->copy()->subSecond()->toDateString())
-            ->where('rental_orders.end_date', '>=', $startAt->toDateString())
-            ->when($excludeRentalId, fn ($q) => $q->where('rental_orders.id', '!=', $excludeRentalId))
+            ->whereNotNull("equipment_rental_items.{$orderFk}")
+            ->whereIn('orders.status', $this->blockingRentalStatuses())
+            ->where('orders.start_date', '<=', $endAt->copy()->subSecond()->toDateString())
+            ->where('orders.end_date', '>=', $startAt->toDateString())
+            ->when($excludeRentalId, fn ($q) => $q->where('orders.id', '!=', $excludeRentalId))
             ->sum('equipment_rental_items.quantity');
 
         return $fromBookings + $fromOrders;

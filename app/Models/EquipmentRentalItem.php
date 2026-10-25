@@ -11,6 +11,7 @@ class EquipmentRentalItem extends Model
         'equipment_id',
         'equipment_rental_id',
         'rental_order_id',
+        'order_id',
         'quantity',
         'days',
         'unit_price',
@@ -39,6 +40,11 @@ class EquipmentRentalItem extends Model
 
     public function rentalOrder(): BelongsTo
     {
-        return $this->belongsTo(RentalOrder::class, 'rental_order_id');
+        return $this->belongsTo(Order::class, 'order_id');
+    }
+
+    public function order(): BelongsTo
+    {
+        return $this->belongsTo(Order::class, 'order_id');
     }
 }

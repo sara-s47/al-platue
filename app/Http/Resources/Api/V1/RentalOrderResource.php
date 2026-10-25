@@ -2,72 +2,9 @@
 
 namespace App\Http\Resources\Api\V1;
 
-use Illuminate\Http\Request;
-use Illuminate\Http\Resources\Json\JsonResource;
-
-class RentalOrderResource extends JsonResource
+/**
+ * Backward-compatible alias for OrderResource.
+ */
+class RentalOrderResource extends OrderResource
 {
-    public function toArray(Request $request): array
-    {
-        $items = collect();
-
-        if ($this->relationLoaded('accessoryItems')) {
-            $items = $items->merge($this->accessoryItems->map(fn ($item) => [
-                'id' => $item->id,
-                'item_type' => 'accessory',
-                'item_id' => $item->accessory_id,
-                'name' => $item->accessory?->name,
-                'image' => $item->relationLoaded('accessory') && $item->accessory?->relationLoaded('images')
-                    ? $item->accessory->images->first()?->public_path
-                    : null,
-                'quantity' => $item->quantity,
-                'days' => $item->days,
-                'unit_price' => $item->unit_price,
-                'total_price' => $item->total_price,
-            ]));
-        }
-
-        if ($this->relationLoaded('equipmentItems')) {
-            $items = $items->merge($this->equipmentItems->map(fn ($item) => [
-                'id' => $item->id,
-                'item_type' => 'equipment',
-                'item_id' => $item->equipment_id,
-                'name' => $item->equipment?->name,
-                'image' => $item->relationLoaded('equipment') && $item->equipment?->relationLoaded('images')
-                    ? $item->equipment->images->first()?->public_path
-                    : null,
-                'quantity' => $item->quantity,
-                'days' => $item->days,
-                'unit_price' => $item->unit_price,
-                'total_price' => $item->total_price,
-            ]));
-        }
-
-        return [
-            'id' => $this->id,
-            'order_number' => $this->order_number,
-            'rental_number' => $this->order_number,
-            'status' => $this->status instanceof \BackedEnum ? $this->status->value : $this->status,
-            'payment_method' => $this->payment_method instanceof \BackedEnum ? $this->payment_method->value : $this->payment_method,
-            'start_date' => $this->start_date?->toDateString(),
-            'end_date' => $this->end_date?->toDateString(),
-            'days' => $this->days,
-            'subtotal' => $this->subtotal,
-            'tax_amount' => $this->tax_amount,
-            'total_amount' => $this->total_amount,
-            'paid_amount' => $this->paid_amount,
-            'remaining_amount' => $this->remaining_amount,
-            'customer_notes' => $this->customer_notes,
-            'created_at' => $this->created_at,
-            'customer' => $this->whenLoaded('user', fn () => $this->user ? [
-                'id' => $this->user->id,
-                'name' => $this->user->name,
-                'email' => $this->user->email,
-                'phone' => $this->user->phone,
-            ] : null),
-            'created_by_name' => $this->whenLoaded('creator', fn () => $this->creator?->name),
-            'items' => $items->values(),
-            'payments' => PaymentResource::collection($this->whenLoaded('payments')),
-        ];
-    }
 }

@@ -35,6 +35,8 @@ class StoreStudioRequest extends FormRequest
             'rules' => 'nullable|string',
             'is_active' => 'boolean',
             'sort_order' => 'nullable|integer|min:1',
+            'paint_pricing_mode' => 'nullable|in:flat_extra,per_color',
+            'flat_extra_paint_price' => 'nullable|numeric|min:0',
             'image' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:5120',
             'images' => 'nullable|array|max:10',
             'images.*' => 'image|mimes:jpeg,jpg,png,webp|max:5120',

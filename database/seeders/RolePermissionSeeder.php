@@ -48,6 +48,9 @@ class RolePermissionSeeder extends Seeder
         'audit.view',
         'reports.view',
         'accessories.manage',
+        'portable-bathrooms.manage',
+        'caravans.manage',
+        'generators.manage',
         'interior-designers.manage',
     ];
 

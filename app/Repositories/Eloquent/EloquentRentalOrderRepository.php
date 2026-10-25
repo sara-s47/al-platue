@@ -2,13 +2,13 @@
 
 namespace App\Repositories\Eloquent;
 
-use App\Models\RentalOrder;
+use App\Models\Order;
 use App\Repositories\Contracts\RentalOrderRepositoryInterface;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class EloquentRentalOrderRepository extends BaseRepository implements RentalOrderRepositoryInterface
 {
-    public function __construct(RentalOrder $model)
+    public function __construct(Order $model)
     {
         parent::__construct($model);
     }
@@ -25,6 +25,11 @@ class EloquentRentalOrderRepository extends BaseRepository implements RentalOrde
             ->with([
                 'accessoryItems.accessory.images',
                 'equipmentItems.equipment.images',
+                'portableBathroomItems.portableBathroom.images',
+                'caravanItems.caravan.images',
+                'generatorItems.generator.images',
+                'booking',
+                'paintColor',
             ])
             ->orderByDesc('id')
             ->paginate($perPage);
@@ -37,6 +42,11 @@ class EloquentRentalOrderRepository extends BaseRepository implements RentalOrde
                 'user',
                 'accessoryItems.accessory.images',
                 'equipmentItems.equipment.images',
+                'portableBathroomItems.portableBathroom.images',
+                'caravanItems.caravan.images',
+                'generatorItems.generator.images',
+                'booking',
+                'paintColor',
             ])
             ->when($filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
             ->when($filters['payment_method'] ?? null, fn ($q, $method) => $q->where('payment_method', $method))

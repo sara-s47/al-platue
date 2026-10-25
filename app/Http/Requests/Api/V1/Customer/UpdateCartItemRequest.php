@@ -15,6 +15,15 @@ class UpdateCartItemRequest extends FormRequest
     {
         return [
             'quantity' => 'required|integer|min:1',
+            'meta' => 'nullable|array',
+            'meta.booking_mode' => 'nullable|in:hourly,daily',
+            'meta.guest_count' => 'nullable|integer|min:1',
+            'meta.package_id' => 'nullable|integer|min:1',
+            'meta.paint_color_id' => 'nullable|integer|min:1',
+            'meta.start_at' => 'nullable|date',
+            'meta.end_at' => 'nullable|date|after:meta.start_at',
+            'meta.start_date' => 'nullable|date_format:Y-m-d',
+            'meta.end_date' => 'nullable|date_format:Y-m-d|after_or_equal:meta.start_date',
         ];
     }
 }

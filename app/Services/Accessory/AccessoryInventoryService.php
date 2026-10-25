@@ -8,6 +8,7 @@ use App\Exceptions\BusinessException;
 use App\Models\Accessory;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class AccessoryInventoryService
 {
@@ -77,15 +78,16 @@ class AccessoryInventoryService
             ->when($excludeBookingId, fn ($q) => $q->where('bookings.id', '!=', $excludeBookingId))
             ->sum('accessory_rental_items.quantity');
 
-        // Standalone rentals (unified rental_orders) cover whole days.
+        // Standalone rentals on unified orders cover whole days.
+        $orderFk = Schema::hasColumn('accessory_rental_items', 'order_id') ? 'order_id' : 'rental_order_id';
         $fromOrders = (int) DB::table('accessory_rental_items')
-            ->join('rental_orders', 'rental_orders.id', '=', 'accessory_rental_items.rental_order_id')
+            ->join('orders', 'orders.id', '=', "accessory_rental_items.{$orderFk}")
             ->where('accessory_rental_items.accessory_id', $accessoryId)
-            ->whereNotNull('accessory_rental_items.rental_order_id')
-            ->whereIn('rental_orders.status', $this->blockingRentalStatuses())
-            ->where('rental_orders.start_date', '<=', $endAt->copy()->subSecond()->toDateString())
-            ->where('rental_orders.end_date', '>=', $startAt->toDateString())
-            ->when($excludeRentalId, fn ($q) => $q->where('rental_orders.id', '!=', $excludeRentalId))
+            ->whereNotNull("accessory_rental_items.{$orderFk}")
+            ->whereIn('orders.status', $this->blockingRentalStatuses())
+            ->where('orders.start_date', '<=', $endAt->copy()->subSecond()->toDateString())
+            ->where('orders.end_date', '>=', $startAt->toDateString())
+            ->when($excludeRentalId, fn ($q) => $q->where('orders.id', '!=', $excludeRentalId))
             ->sum('accessory_rental_items.quantity');
 
         return (int) $fromBookings + $fromOrders;

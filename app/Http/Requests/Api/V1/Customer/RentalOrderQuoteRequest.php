@@ -14,11 +14,11 @@ class RentalOrderQuoteRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'start_date' => 'required|date_format:Y-m-d|after_or_equal:today',
-            'end_date' => 'required|date_format:Y-m-d|after_or_equal:start_date',
+            'start_date' => 'nullable|date_format:Y-m-d|after_or_equal:today',
+            'end_date' => 'nullable|date_format:Y-m-d|after_or_equal:start_date',
             'from_cart' => 'sometimes|boolean',
             'items' => 'required_without:from_cart|array|min:1',
-            'items.*.type' => 'required_with:items|in:equipment,accessory',
+            'items.*.type' => 'required_with:items|in:equipment,accessory,portable_bathroom,caravan,generator,studio',
             'items.*.id' => 'required_with:items|integer|min:1',
             'items.*.quantity' => 'required_with:items|integer|min:1',
         ];

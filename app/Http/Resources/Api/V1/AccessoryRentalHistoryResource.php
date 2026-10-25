@@ -14,7 +14,7 @@ class AccessoryRentalHistoryResource extends JsonResource
     public function toArray(Request $request): array
     {
         $booking = $this->booking;
-        $order = $this->rentalOrder;
+        $order = $this->relationLoaded('order') ? $this->order : $this->rentalOrder;
         $customer = $booking?->user ?? $order?->user;
 
         return [
