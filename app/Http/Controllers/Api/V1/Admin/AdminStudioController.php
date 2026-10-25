@@ -26,7 +26,8 @@ class AdminStudioController extends Controller
 
     public function store(StoreStudioRequest $request): JsonResponse
     {
-        $data = $request->safe()->except(['image', 'images']);
+        $data = $request->safe()->except(['image', 'images', 'cover_image']);
+        $this->applyCoverUpload($request, $data);
         $paths = $this->storeUploadedImages($request);
 
         return ApiResponse::success(new StudioResource($this->studioService->create($data, $paths)), null, 201);
@@ -39,7 +40,8 @@ class AdminStudioController extends Controller
 
     public function update(UpdateStudioRequest $request, int $id): JsonResponse
     {
-        $data = $request->safe()->except(['image', 'images', 'clear_images']);
+        $data = $request->safe()->except(['image', 'images', 'clear_images', 'cover_image', 'clear_cover']);
+        $this->applyCoverUpload($request, $data);
         $paths = null;
 
         if ($request->boolean('clear_images')) {
@@ -72,6 +74,22 @@ class AdminStudioController extends Controller
     public function uploadImages(UploadStudioImagesRequest $request, int $id): JsonResponse
     {
         return ApiResponse::success(new StudioResource($this->studioService->uploadImages($id, $request->images)));
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    protected function applyCoverUpload(Request $request, array &$data): void
+    {
+        if ($request->boolean('clear_cover')) {
+            $data['cover_image'] = null;
+
+            return;
+        }
+
+        if ($request->hasFile('cover_image')) {
+            $data['cover_image'] = $request->file('cover_image')->store('studios', 'public');
+        }
     }
 
     /**

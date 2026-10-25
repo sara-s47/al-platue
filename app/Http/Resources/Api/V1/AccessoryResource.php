@@ -2,6 +2,8 @@
 
 namespace App\Http\Resources\Api\V1;
 
+use App\Support\CatalogCover;
+use App\Support\PublicStorageUrl;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -15,24 +17,28 @@ class AccessoryResource extends JsonResource
             'sort_order' => $image->sort_order,
         ])->values());
 
-        $primary = null;
-        if ($this->relationLoaded('images') && $this->images->isNotEmpty()) {
-            $primary = $this->images->first()->public_path;
-        }
+        $cover = PublicStorageUrl::from($this->cover_image);
+        $primary = CatalogCover::url(
+            $this->cover_image,
+            $this->relationLoaded('images') ? $this->images : null,
+        );
 
         $stats = $this->resource->getAttribute('stats');
         $available = $this->resource->getAttribute('available_quantity');
 
         return [
             'id' => $this->id,
+            'category_id' => $this->category_id,
             'name' => $this->name,
             'description' => $this->description,
             'price_per_day' => $this->price_per_day,
             'quantity' => $this->quantity,
             'is_active' => $this->is_active,
             'available_quantity' => $this->when($available !== null, $available),
+            'cover_image' => $cover,
             'image' => $primary,
             'images' => $images,
+            'category' => new AccessoryCategoryResource($this->whenLoaded('category')),
             'stats' => $this->when($stats !== null, $stats),
         ];
     }

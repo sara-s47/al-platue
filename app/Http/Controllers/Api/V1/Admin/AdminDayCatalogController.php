@@ -29,7 +29,8 @@ abstract class AdminDayCatalogController extends Controller
 
     public function store(StoreDayCatalogRequest $request): JsonResponse
     {
-        $data = $request->safe()->except(['image', 'images']);
+        $data = $request->safe()->except(['image', 'images', 'cover_image']);
+        $this->applyCoverUpload($request, $data);
         $paths = $this->storeUploadedImages($request);
 
         return ApiResponse::success(
@@ -48,7 +49,8 @@ abstract class AdminDayCatalogController extends Controller
 
     public function update(UpdateDayCatalogRequest $request, int $id): JsonResponse
     {
-        $data = $request->safe()->except(['image', 'images', 'clear_images']);
+        $data = $request->safe()->except(['image', 'images', 'clear_images', 'cover_image', 'clear_cover']);
+        $this->applyCoverUpload($request, $data);
         $paths = null;
 
         if ($request->boolean('clear_images')) {
@@ -92,6 +94,23 @@ abstract class AdminDayCatalogController extends Controller
         );
 
         return ApiResponse::paginated($p->through(fn ($item) => new DayCatalogOrderHistoryResource($item)));
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    protected function applyCoverUpload(Request $request, array &$data): void
+    {
+        if ($request->boolean('clear_cover')) {
+            $data['cover_image'] = null;
+
+            return;
+        }
+
+        if ($request->hasFile('cover_image')) {
+            $folder = DayCatalog::storageFolder($this->catalogType());
+            $data['cover_image'] = $request->file('cover_image')->store($folder, 'public');
+        }
     }
 
     /**

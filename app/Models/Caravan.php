@@ -14,6 +14,7 @@ class Caravan extends Model
         'price_per_day',
         'quantity',
         'is_active',
+        'cover_image',
     ];
 
     protected function casts(): array

@@ -31,7 +31,8 @@ class AdminEquipmentController extends Controller
 
     public function store(StoreEquipmentRequest $request): JsonResponse
     {
-        $data = $request->safe()->except(['image', 'images', 'studios']);
+        $data = $request->safe()->except(['image', 'images', 'studios', 'cover_image']);
+        $this->applyCoverUpload($request, $data);
         $paths = $this->storeUploadedImages($request);
         $studios = $request->has('studios') ? ($request->validated('studios') ?? []) : null;
 
@@ -49,7 +50,8 @@ class AdminEquipmentController extends Controller
 
     public function update(UpdateEquipmentRequest $request, int $id): JsonResponse
     {
-        $data = $request->safe()->except(['image', 'images', 'clear_images', 'studios', 'clear_studios']);
+        $data = $request->safe()->except(['image', 'images', 'clear_images', 'studios', 'clear_studios', 'cover_image', 'clear_cover']);
+        $this->applyCoverUpload($request, $data);
         $paths = null;
 
         if ($request->boolean('clear_images')) {
@@ -126,6 +128,22 @@ class AdminEquipmentController extends Controller
         $p = $this->equipmentService->rentalHistory($id, $filters, (int) $request->get('per_page', 15));
 
         return ApiResponse::paginated($p->through(fn ($item) => new EquipmentRentalHistoryResource($item)));
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    protected function applyCoverUpload(Request $request, array &$data): void
+    {
+        if ($request->boolean('clear_cover')) {
+            $data['cover_image'] = null;
+
+            return;
+        }
+
+        if ($request->hasFile('cover_image')) {
+            $data['cover_image'] = $request->file('cover_image')->store('equipment', 'public');
+        }
     }
 
     /**

@@ -35,8 +35,11 @@ class EquipmentRentalResource extends JsonResource
                 'id' => $item->id,
                 'equipment_id' => $item->equipment_id,
                 'name' => $item->equipment?->name,
-                'image' => $item->relationLoaded('equipment') && $item->equipment?->relationLoaded('images')
-                    ? $item->equipment->images->first()?->public_path
+                'image' => $item->relationLoaded('equipment')
+                    ? \App\Support\CatalogCover::url(
+                        $item->equipment?->cover_image,
+                        $item->equipment?->relationLoaded('images') ? $item->equipment->images : null,
+                    )
                     : null,
                 'quantity' => $item->quantity,
                 'days' => $item->days,

@@ -19,14 +19,16 @@ class AdminAccessoryController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $p = $this->accessoryService->paginate((int) $request->get('per_page', 15));
+        $filters = $request->only(['category_id', 'search']);
+        $p = $this->accessoryService->paginate((int) $request->get('per_page', 15), $filters);
 
         return ApiResponse::paginated($p->through(fn ($a) => new AccessoryResource($a)));
     }
 
     public function store(StoreAccessoryRequest $request): JsonResponse
     {
-        $data = $request->safe()->except(['image', 'images']);
+        $data = $request->safe()->except(['image', 'images', 'cover_image']);
+        $this->applyCoverUpload($request, $data, 'accessories');
         $paths = $this->storeUploadedImages($request);
 
         return ApiResponse::success(new AccessoryResource($this->accessoryService->create($data, $paths)), null, 201);
@@ -39,7 +41,8 @@ class AdminAccessoryController extends Controller
 
     public function update(UpdateAccessoryRequest $request, int $id): JsonResponse
     {
-        $data = $request->safe()->except(['image', 'images', 'clear_images']);
+        $data = $request->safe()->except(['image', 'images', 'clear_images', 'cover_image', 'clear_cover']);
+        $this->applyCoverUpload($request, $data, 'accessories');
         $paths = null;
 
         if ($request->boolean('clear_images')) {
@@ -77,6 +80,22 @@ class AdminAccessoryController extends Controller
         $p = $this->accessoryService->rentalHistory($id, $filters, (int) $request->get('per_page', 15));
 
         return ApiResponse::paginated($p->through(fn ($item) => new AccessoryRentalHistoryResource($item)));
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    protected function applyCoverUpload(Request $request, array &$data, string $folder): void
+    {
+        if ($request->boolean('clear_cover')) {
+            $data['cover_image'] = null;
+
+            return;
+        }
+
+        if ($request->hasFile('cover_image')) {
+            $data['cover_image'] = $request->file('cover_image')->store($folder, 'public');
+        }
     }
 
     /**

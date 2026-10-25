@@ -26,6 +26,8 @@ class UpdateStudioRequest extends FormRequest
             'sort_order' => 'sometimes|integer|min:1',
             'paint_pricing_mode' => 'sometimes|in:flat_extra,per_color',
             'flat_extra_paint_price' => 'nullable|numeric|min:0',
+            'cover_image' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:5120',
+            'clear_cover' => 'sometimes|boolean',
             'image' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:5120',
             'images' => 'nullable|array|max:10',
             'images.*' => 'image|mimes:jpeg,jpg,png,webp|max:5120',

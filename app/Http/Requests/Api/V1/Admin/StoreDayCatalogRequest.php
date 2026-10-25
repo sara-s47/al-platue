@@ -19,6 +19,7 @@ class StoreDayCatalogRequest extends FormRequest
             'price_per_day' => 'required|numeric|min:0',
             'quantity' => 'required|integer|min:0',
             'is_active' => 'boolean',
+            'cover_image' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:51200',
             'image' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:51200',
             'images' => 'nullable|array|max:10',
             'images.*' => 'image|mimes:jpeg,jpg,png,webp|max:51200',

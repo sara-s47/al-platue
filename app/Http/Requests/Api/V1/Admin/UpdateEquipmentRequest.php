@@ -29,6 +29,8 @@ class UpdateEquipmentRequest extends FormRequest
             'price_per_hour' => 'sometimes|numeric|min:0',
             'price_per_day' => 'sometimes|numeric|min:0',
             'status' => ['nullable', 'string', Rule::in([...array_column(EquipmentStatus::cases(), 'value'), 'available'])],
+            'cover_image' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:5120',
+            'clear_cover' => 'sometimes|boolean',
             'image' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:5120',
             'images' => 'nullable|array|max:5',
             'images.*' => 'image|mimes:jpeg,jpg,png,webp|max:5120',

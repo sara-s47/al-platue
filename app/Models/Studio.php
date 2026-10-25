@@ -23,6 +23,7 @@ class Studio extends Model
         'sort_order',
         'paint_pricing_mode',
         'flat_extra_paint_price',
+        'cover_image',
     ];
 
     protected function casts(): array

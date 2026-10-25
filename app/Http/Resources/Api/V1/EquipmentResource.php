@@ -2,6 +2,8 @@
 
 namespace App\Http\Resources\Api\V1;
 
+use App\Support\CatalogCover;
+use App\Support\PublicStorageUrl;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -17,10 +19,11 @@ class EquipmentResource extends JsonResource
             ])->values();
         });
 
-        $primary = null;
-        if ($this->relationLoaded('images') && $this->images->isNotEmpty()) {
-            $primary = $this->images->first()->public_path;
-        }
+        $cover = PublicStorageUrl::from($this->cover_image);
+        $primary = CatalogCover::url(
+            $this->cover_image,
+            $this->relationLoaded('images') ? $this->images : null,
+        );
 
         return [
             'id' => $this->id,
@@ -30,6 +33,7 @@ class EquipmentResource extends JsonResource
             'price_per_day' => $this->price_per_day ?? $this->price ?? null,
             'quantity' => $this->quantity ?? $this->studio_quantity ?? null,
             'status' => $this->status ?? null,
+            'cover_image' => $cover,
             'image' => $primary,
             'images' => $images,
             'available_quantity' => $this->when(

@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Repositories\Contracts\AccessoryCategoryRepositoryInterface;
 use App\Repositories\Contracts\AccessoryRentalRepositoryInterface;
 use App\Repositories\Contracts\AccessoryRepositoryInterface;
 use App\Repositories\Contracts\AppSettingRepositoryInterface;
@@ -42,6 +43,7 @@ use App\Repositories\Contracts\StudioRepositoryInterface;
 use App\Repositories\Contracts\StudioScheduleOverrideRepositoryInterface;
 use App\Repositories\Contracts\StudioScheduleRepositoryInterface;
 use App\Repositories\Contracts\UserRepositoryInterface;
+use App\Repositories\Eloquent\EloquentAccessoryCategoryRepository;
 use App\Repositories\Eloquent\EloquentAccessoryRentalRepository;
 use App\Repositories\Eloquent\EloquentAccessoryRepository;
 use App\Repositories\Eloquent\EloquentAppSettingRepository;
@@ -126,6 +128,7 @@ class RepositoryServiceProvider extends ServiceProvider
         $this->app->bind(AppSettingRepositoryInterface::class, EloquentAppSettingRepository::class);
         $this->app->bind(AuditLogRepositoryInterface::class, EloquentAuditLogRepository::class);
         $this->app->bind(AccessoryRepositoryInterface::class, EloquentAccessoryRepository::class);
+        $this->app->bind(AccessoryCategoryRepositoryInterface::class, EloquentAccessoryCategoryRepository::class);
         $this->app->bind(AccessoryRentalRepositoryInterface::class, EloquentAccessoryRentalRepository::class);
         $this->app->bind(PortableBathroomRepositoryInterface::class, EloquentPortableBathroomRepository::class);
         $this->app->bind(CaravanRepositoryInterface::class, EloquentCaravanRepository::class);

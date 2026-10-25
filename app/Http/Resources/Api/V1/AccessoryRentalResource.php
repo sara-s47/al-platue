@@ -35,8 +35,11 @@ class AccessoryRentalResource extends JsonResource
                 'id' => $item->id,
                 'accessory_id' => $item->accessory_id,
                 'name' => $item->accessory?->name,
-                'image' => $item->relationLoaded('accessory') && $item->accessory?->relationLoaded('images')
-                    ? $item->accessory->images->first()?->public_path
+                'image' => $item->relationLoaded('accessory')
+                    ? \App\Support\CatalogCover::url(
+                        $item->accessory?->cover_image,
+                        $item->accessory?->relationLoaded('images') ? $item->accessory->images : null,
+                    )
                     : null,
                 'quantity' => $item->quantity,
                 'days' => $item->days,

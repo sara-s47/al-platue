@@ -23,7 +23,7 @@ class AccessoryController extends Controller
     {
         $period = $this->resolvePeriod($request);
         $paginator = $this->accessoryRepository->listForCustomer(
-            $request->only(['search']),
+            $request->only(['search', 'category_id']),
             (int) $request->get('per_page', 15),
         );
 
@@ -36,7 +36,7 @@ class AccessoryController extends Controller
 
     public function show(Request $request, int $id): JsonResponse
     {
-        $accessory = Accessory::query()->with('images')->where('is_active', true)->findOrFail($id);
+        $accessory = Accessory::query()->with(['images', 'category'])->where('is_active', true)->findOrFail($id);
         $period = $this->resolvePeriod($request);
 
         if ($period) {

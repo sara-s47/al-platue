@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\Admin\AdminAccessoryCategoryController;
 use App\Http\Controllers\Api\V1\Admin\AdminAccessoryController;
 use App\Http\Controllers\Api\V1\Admin\AdminAccessoryRentalController;
 use App\Http\Controllers\Api\V1\Admin\AdminAppSettingController;
@@ -37,6 +38,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminStudioController;
 use App\Http\Controllers\Api\V1\Admin\AdminStudioItemController;
 use App\Http\Controllers\Api\V1\Admin\AdminUserController;
 use App\Http\Controllers\Api\V1\Auth\AuthController;
+use App\Http\Controllers\Api\V1\Customer\AccessoryCategoryController;
 use App\Http\Controllers\Api\V1\Customer\AccessoryController;
 use App\Http\Controllers\Api\V1\Customer\AccessoryRentalController;
 use App\Http\Controllers\Api\V1\Customer\AvailabilityController;
@@ -115,6 +117,7 @@ Route::prefix('v1')->group(function () {
         // Route::post('bookings/{bookingId}/payments', [PaymentController::class, 'initiate']);
         Route::get('payments/{id}', [PaymentController::class, 'show']);
 
+        Route::get('accessory-categories', [AccessoryCategoryController::class, 'index']);
         Route::get('accessories', [AccessoryController::class, 'index']);
         Route::get('accessories/availability', [AccessoryController::class, 'availability']);
         Route::get('accessories/{id}', [AccessoryController::class, 'show'])->whereNumber('id');
@@ -301,6 +304,16 @@ Route::prefix('v1')->group(function () {
             Route::delete('items/{id}', [AdminHospitalityController::class, 'destroyItem']);
             Route::post('items/{itemId}/studios/{studioId}', [AdminHospitalityController::class, 'assign']);
             Route::delete('items/{itemId}/studios/{studioId}', [AdminHospitalityController::class, 'unassign']);
+        });
+
+        Route::middleware('permission:accessories.manage')->prefix('accessory-categories')->group(function () {
+            Route::get('/', [AdminAccessoryCategoryController::class, 'index']);
+            Route::post('/', [AdminAccessoryCategoryController::class, 'store']);
+            Route::get('{id}', [AdminAccessoryCategoryController::class, 'show']);
+            Route::put('{id}', [AdminAccessoryCategoryController::class, 'update']);
+            Route::delete('{id}', [AdminAccessoryCategoryController::class, 'destroy']);
+            Route::post('reorder', [AdminAccessoryCategoryController::class, 'reorder']);
+            Route::post('{id}/toggle', [AdminAccessoryCategoryController::class, 'toggle']);
         });
 
         Route::middleware('permission:accessories.manage')->prefix('accessories')->group(function () {

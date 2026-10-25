@@ -31,7 +31,7 @@ class StudioService
     public function create(array $data, array $imagePaths = []): Studio
     {
         $weeklySchedule = $data['weekly_schedule'] ?? null;
-        unset($data['weekly_schedule'], $data['image'], $data['images']);
+        unset($data['weekly_schedule'], $data['image'], $data['images'], $data['clear_cover']);
 
         $data = $this->normalizeTextColumns(['description' => null, 'address' => null, 'rules' => null, ...$data]);
         $position = isset($data['sort_order']) ? (int) $data['sort_order'] : null;
@@ -62,12 +62,14 @@ class StudioService
      */
     public function update(int $id, array $data, ?array $imagePaths = null): Studio
     {
-        unset($data['image'], $data['images'], $data['clear_images']);
+        unset($data['image'], $data['images'], $data['clear_images'], $data['clear_cover']);
         $data = $this->normalizeTextColumns($data);
         $position = isset($data['sort_order']) ? (int) $data['sort_order'] : null;
         unset($data['sort_order']);
 
         return DB::transaction(function () use ($id, $data, $imagePaths, $position) {
+            $current = $this->studioRepository->findOrFail($id);
+            $this->replaceCover($current, $data);
             $studio = $this->studioRepository->update($id, $data);
 
             if ($position !== null) {
@@ -85,6 +87,8 @@ class StudioService
     public function delete(int $id): bool
     {
         return DB::transaction(function () use ($id) {
+            $studio = $this->studioRepository->findOrFail($id);
+            $this->deleteCoverFile($studio->cover_image);
             $deleted = $this->studioRepository->delete($id);
             $this->applyOrder($this->orderedIdsExcept([]));
 
@@ -220,6 +224,28 @@ class StudioService
                 'path' => $path,
                 'sort_order' => $index,
             ]);
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    protected function replaceCover(Studio $current, array $data): void
+    {
+        if (! array_key_exists('cover_image', $data)) {
+            return;
+        }
+
+        $newPath = $data['cover_image'];
+        if ($current->cover_image && $current->cover_image !== $newPath) {
+            $this->deleteCoverFile($current->cover_image);
+        }
+    }
+
+    protected function deleteCoverFile(?string $path): void
+    {
+        if ($path) {
+            Storage::disk('public')->delete($path);
         }
     }
 }

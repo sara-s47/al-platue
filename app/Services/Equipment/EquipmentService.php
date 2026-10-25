@@ -58,7 +58,11 @@ class EquipmentService
     public function update(int $id, array $data, ?array $imagePaths = null, ?array $studios = null): Model
     {
         return DB::transaction(function () use ($id, $data, $imagePaths, $studios) {
-            $equipment = $this->equipmentRepository->update($id, $this->normalizePayload($data));
+            /** @var Equipment $current */
+            $current = $this->equipmentRepository->findOrFail($id);
+            $payload = $this->normalizePayload($data);
+            $this->replaceCover($current, $payload);
+            $equipment = $this->equipmentRepository->update($id, $payload);
 
             if ($imagePaths !== null) {
                 $this->syncImages($equipment->id, $imagePaths);
@@ -77,7 +81,8 @@ class EquipmentService
     public function delete(int $id): bool
     {
         return DB::transaction(function () use ($id) {
-            $this->equipmentRepository->findOrFail($id);
+            /** @var Equipment $equipment */
+            $equipment = $this->equipmentRepository->findOrFail($id);
 
             if (DB::table('booking_equipment')->where('equipment_id', $id)->exists()) {
                 throw new BusinessException('Cannot delete equipment used in bookings.', 'equipment_in_use');
@@ -89,6 +94,7 @@ class EquipmentService
 
             DB::table('studio_equipment')->where('equipment_id', $id)->delete();
             $this->syncImages($id, []);
+            $this->deleteCoverFile($equipment->cover_image);
 
             return $this->equipmentRepository->delete($id);
         });
@@ -317,8 +323,30 @@ class EquipmentService
             $data['description'] = '';
         }
 
-        unset($data['image'], $data['images'], $data['clear_images'], $data['studios'], $data['clear_studios']);
+        unset($data['image'], $data['images'], $data['clear_images'], $data['studios'], $data['clear_studios'], $data['clear_cover']);
 
         return $data;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    protected function replaceCover(Equipment $current, array $data): void
+    {
+        if (! array_key_exists('cover_image', $data)) {
+            return;
+        }
+
+        $newPath = $data['cover_image'];
+        if ($current->cover_image && $current->cover_image !== $newPath) {
+            $this->deleteCoverFile($current->cover_image);
+        }
+    }
+
+    protected function deleteCoverFile(?string $path): void
+    {
+        if ($path) {
+            Storage::disk('public')->delete($path);
+        }
     }
 }

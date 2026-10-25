@@ -21,9 +21,9 @@ class AccessoryService
     ) {
     }
 
-    public function paginate(int $perPage = 15): LengthAwarePaginator
+    public function paginate(int $perPage = 15, array $filters = []): LengthAwarePaginator
     {
-        $paginator = $this->accessoryRepository->paginate($perPage);
+        $paginator = $this->accessoryRepository->paginateAdmin($filters, $perPage);
         $this->attachStats($paginator->getCollection()->all());
 
         return $paginator;
@@ -44,6 +44,7 @@ class AccessoryService
     public function create(array $data, array $imagePaths = []): Accessory
     {
         return DB::transaction(function () use ($data, $imagePaths) {
+            unset($data['image'], $data['images'], $data['clear_images'], $data['clear_cover']);
             $accessory = $this->accessoryRepository->create($data);
             $this->syncImages($accessory->id, $imagePaths);
 
@@ -57,6 +58,10 @@ class AccessoryService
     public function update(int $id, array $data, ?array $imagePaths = null): Accessory
     {
         return DB::transaction(function () use ($id, $data, $imagePaths) {
+            unset($data['image'], $data['images'], $data['clear_images'], $data['clear_cover']);
+            /** @var Accessory $current */
+            $current = $this->accessoryRepository->findOrFail($id);
+            $this->replaceCover($current, $data);
             $this->accessoryRepository->update($id, $data);
 
             if ($imagePaths !== null) {
@@ -70,7 +75,8 @@ class AccessoryService
     public function delete(int $id): bool
     {
         return DB::transaction(function () use ($id) {
-            $this->accessoryRepository->findOrFail($id);
+            /** @var Accessory $accessory */
+            $accessory = $this->accessoryRepository->findOrFail($id);
 
             if (AccessoryRentalItem::query()->where('accessory_id', $id)->exists()) {
                 throw new BusinessException(
@@ -80,6 +86,7 @@ class AccessoryService
             }
 
             $this->syncImages($id, []);
+            $this->deleteCoverFile($accessory->cover_image);
 
             return $this->accessoryRepository->delete($id);
         });
@@ -191,6 +198,28 @@ class AccessoryService
                 'path' => $path,
                 'sort_order' => $index,
             ]);
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    protected function replaceCover(Accessory $current, array $data): void
+    {
+        if (! array_key_exists('cover_image', $data)) {
+            return;
+        }
+
+        $newPath = $data['cover_image'];
+        if ($current->cover_image && $current->cover_image !== $newPath) {
+            $this->deleteCoverFile($current->cover_image);
+        }
+    }
+
+    protected function deleteCoverFile(?string $path): void
+    {
+        if ($path) {
+            Storage::disk('public')->delete($path);
         }
     }
 }

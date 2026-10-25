@@ -41,6 +41,7 @@ class DayCatalogService
     public function create(string $type, array $data, array $imagePaths = []): Model
     {
         return DB::transaction(function () use ($type, $data, $imagePaths) {
+            unset($data['image'], $data['images'], $data['clear_images'], $data['clear_cover']);
             $modelClass = DayCatalog::modelClass($type);
             $product = $modelClass::query()->create($data);
             $this->syncImages($type, $product->id, $imagePaths);
@@ -55,9 +56,11 @@ class DayCatalogService
     public function update(string $type, int $id, array $data, ?array $imagePaths = null): Model
     {
         return DB::transaction(function () use ($type, $id, $data, $imagePaths) {
+            unset($data['image'], $data['images'], $data['clear_images'], $data['clear_cover']);
             $modelClass = DayCatalog::modelClass($type);
             /** @var Model $product */
             $product = $modelClass::query()->findOrFail($id);
+            $this->replaceCover($product, $data);
             $product->update($data);
 
             if ($imagePaths !== null) {
@@ -75,7 +78,8 @@ class DayCatalogService
             $orderItemClass = DayCatalog::orderItemClass($type);
             $fk = DayCatalog::productFk($type);
 
-            $modelClass::query()->findOrFail($id);
+            /** @var Model $product */
+            $product = $modelClass::query()->findOrFail($id);
 
             if ($orderItemClass::query()->where($fk, $id)->exists()) {
                 throw new BusinessException(
@@ -85,6 +89,7 @@ class DayCatalogService
             }
 
             $this->syncImages($type, $id, []);
+            $this->deleteCoverFile($product->getAttribute('cover_image'));
 
             return (bool) $modelClass::query()->whereKey($id)->delete();
         });
@@ -182,6 +187,29 @@ class DayCatalogService
                 'path' => $path,
                 'sort_order' => $index,
             ]);
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    protected function replaceCover(Model $current, array $data): void
+    {
+        if (! array_key_exists('cover_image', $data)) {
+            return;
+        }
+
+        $old = $current->getAttribute('cover_image');
+        $newPath = $data['cover_image'];
+        if ($old && $old !== $newPath) {
+            $this->deleteCoverFile($old);
+        }
+    }
+
+    protected function deleteCoverFile(?string $path): void
+    {
+        if ($path) {
+            Storage::disk('public')->delete($path);
         }
     }
 }

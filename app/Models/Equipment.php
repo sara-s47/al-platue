@@ -20,6 +20,7 @@ class Equipment extends Model
         'quantity',
         'status',
         'is_included',
+        'cover_image',
     ];
 
     protected function casts(): array

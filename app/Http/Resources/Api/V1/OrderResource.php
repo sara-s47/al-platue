@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Api\V1;
 
+use App\Support\CatalogCover;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -17,8 +18,11 @@ class OrderResource extends JsonResource
                 'item_type' => 'accessory',
                 'item_id' => $item->accessory_id,
                 'name' => $item->accessory?->name,
-                'image' => $item->relationLoaded('accessory') && $item->accessory?->relationLoaded('images')
-                    ? $item->accessory->images->first()?->public_path
+                'image' => $item->relationLoaded('accessory')
+                    ? CatalogCover::url(
+                        $item->accessory?->cover_image,
+                        $item->accessory?->relationLoaded('images') ? $item->accessory->images : null,
+                    )
                     : null,
                 'quantity' => $item->quantity,
                 'days' => $item->days,
@@ -33,8 +37,11 @@ class OrderResource extends JsonResource
                 'item_type' => 'equipment',
                 'item_id' => $item->equipment_id,
                 'name' => $item->equipment?->name,
-                'image' => $item->relationLoaded('equipment') && $item->equipment?->relationLoaded('images')
-                    ? $item->equipment->images->first()?->public_path
+                'image' => $item->relationLoaded('equipment')
+                    ? CatalogCover::url(
+                        $item->equipment?->cover_image,
+                        $item->equipment?->relationLoaded('images') ? $item->equipment->images : null,
+                    )
                     : null,
                 'quantity' => $item->quantity,
                 'days' => $item->days,
@@ -49,8 +56,11 @@ class OrderResource extends JsonResource
                 'item_type' => 'portable_bathroom',
                 'item_id' => $item->portable_bathroom_id,
                 'name' => $item->portableBathroom?->name,
-                'image' => $item->relationLoaded('portableBathroom') && $item->portableBathroom?->relationLoaded('images')
-                    ? $item->portableBathroom->images->first()?->public_path
+                'image' => $item->relationLoaded('portableBathroom')
+                    ? CatalogCover::url(
+                        $item->portableBathroom?->cover_image,
+                        $item->portableBathroom?->relationLoaded('images') ? $item->portableBathroom->images : null,
+                    )
                     : null,
                 'quantity' => $item->quantity,
                 'days' => $item->days,
@@ -65,8 +75,11 @@ class OrderResource extends JsonResource
                 'item_type' => 'caravan',
                 'item_id' => $item->caravan_id,
                 'name' => $item->caravan?->name,
-                'image' => $item->relationLoaded('caravan') && $item->caravan?->relationLoaded('images')
-                    ? $item->caravan->images->first()?->public_path
+                'image' => $item->relationLoaded('caravan')
+                    ? CatalogCover::url(
+                        $item->caravan?->cover_image,
+                        $item->caravan?->relationLoaded('images') ? $item->caravan->images : null,
+                    )
                     : null,
                 'quantity' => $item->quantity,
                 'days' => $item->days,
@@ -81,8 +94,11 @@ class OrderResource extends JsonResource
                 'item_type' => 'generator',
                 'item_id' => $item->generator_id,
                 'name' => $item->generator?->name,
-                'image' => $item->relationLoaded('generator') && $item->generator?->relationLoaded('images')
-                    ? $item->generator->images->first()?->public_path
+                'image' => $item->relationLoaded('generator')
+                    ? CatalogCover::url(
+                        $item->generator?->cover_image,
+                        $item->generator?->relationLoaded('images') ? $item->generator->images : null,
+                    )
                     : null,
                 'quantity' => $item->quantity,
                 'days' => $item->days,

@@ -6,6 +6,8 @@ use App\Enums\EquipmentStatus;
 use App\Enums\HospitalityPricingModel;
 use App\Enums\LoyaltyRuleType;
 use App\Enums\PricingRuleType;
+use App\Models\Accessory;
+use App\Models\AccessoryCategory;
 use App\Models\CancellationPolicy;
 use App\Models\Category;
 use App\Models\ContentPage;
@@ -22,6 +24,7 @@ use App\Models\StudioImage;
 use App\Models\StudioSchedule;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class DemoDataSeeder extends Seeder
 {
@@ -30,6 +33,7 @@ class DemoDataSeeder extends Seeder
         $categories = $this->seedCategories();
         $equipment = $this->seedEquipment();
         $hospitality = $this->seedHospitality();
+        $this->seedAccessoryCategories();
 
         $this->seedPolicies();
         $this->seedLoyaltyRules();
@@ -99,6 +103,49 @@ class DemoDataSeeder extends Seeder
                     'is_active' => true,
                 ],
             );
+        }
+
+        return $categories;
+    }
+
+    /**
+     * @return array<string, AccessoryCategory>
+     */
+    protected function seedAccessoryCategories(): array
+    {
+        $definitions = [
+            'decor' => [
+                'name' => 'Decor',
+                'description' => 'Props, backdrops, and decorative pieces for shoots.',
+                'sort_order' => 1,
+            ],
+            'furniture' => [
+                'name' => 'Furniture',
+                'description' => 'Chairs, tables, and set furniture for rent.',
+                'sort_order' => 2,
+            ],
+            'lighting' => [
+                'name' => 'Lighting Accessories',
+                'description' => 'Softboxes, stands, and lighting modifiers.',
+                'sort_order' => 3,
+            ],
+        ];
+
+        $categories = [];
+
+        foreach ($definitions as $key => $definition) {
+            $categories[$key] = AccessoryCategory::updateOrCreate(
+                ['name' => $definition['name']],
+                [
+                    'description' => $definition['description'],
+                    'sort_order' => $definition['sort_order'],
+                    'is_active' => true,
+                ],
+            );
+        }
+
+        if (Schema::hasTable('accessories') && Schema::hasColumn('accessories', 'category_id')) {
+            Accessory::query()->whereNull('category_id')->update(['category_id' => $categories['decor']->id]);
         }
 
         return $categories;
