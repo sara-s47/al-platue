@@ -9,6 +9,7 @@ class InteriorDesigner extends Model
     protected $fillable = [
         'name',
         'title',
+        'phone',
         'image_path',
         'portfolio_url',
         'notes',

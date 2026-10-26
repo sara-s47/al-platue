@@ -24,6 +24,7 @@ class StoreInteriorDesignerRequest extends FormRequest
         return [
             'name' => 'required|string|max:255',
             'title' => 'required|string|max:255',
+            'phone' => 'nullable|string|max:20',
             'image' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:51200',
             'portfolio_url' => 'nullable|url|max:500',
             'notes' => 'nullable|array|max:50',

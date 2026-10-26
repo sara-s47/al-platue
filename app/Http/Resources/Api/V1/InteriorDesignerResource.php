@@ -14,6 +14,7 @@ class InteriorDesignerResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'title' => $this->title,
+            'phone' => $this->phone,
             'image' => PublicStorageUrl::from($this->image_path),
             'portfolio_url' => $this->portfolio_url,
             'notes' => $this->notes ?? [],
