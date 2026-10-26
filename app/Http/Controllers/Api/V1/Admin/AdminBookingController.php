@@ -23,33 +23,38 @@ class AdminBookingController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $p = Booking::query()->with('studio')->latest()->paginate((int) $request->get('per_page', 15));
+        $p = Booking::query()
+            ->with(['studio', 'user'])
+            ->latest()
+            ->paginate((int) $request->get('per_page', 15));
+
         return ApiResponse::paginated($p->through(fn ($b) => new BookingResource($b)));
     }
 
     public function show(int $id): JsonResponse
     {
-        return ApiResponse::success(new BookingResource(
-            Booking::with(['studio', 'accessories.accessory', 'user', 'package', 'pointsTransactions'])->findOrFail($id),
-        ));
+        return ApiResponse::success(new BookingResource($this->loadBookingDetail($id)));
     }
 
     public function updateStatus(UpdateBookingStatusRequest $request, int $id): JsonResponse
     {
-        $booking = $this->bookingService->updateStatus($id, BookingStatus::from($request->status));
-        return ApiResponse::success(new BookingResource($booking));
+        $this->bookingService->updateStatus($id, BookingStatus::from($request->status));
+
+        return ApiResponse::success(new BookingResource($this->loadBookingDetail($id)));
     }
 
     public function addNote(AddBookingNoteRequest $request, int $id): JsonResponse
     {
         $this->bookingService->addInternalNote($id, $request->user()->id, $request->note);
+
         return ApiResponse::success(message: 'Note added.');
     }
 
     public function cancel(Request $request, int $id): JsonResponse
     {
-        $booking = $this->bookingService->cancel($id, $request->user()->id, $request->input('reason'));
-        return ApiResponse::success(new BookingResource($booking));
+        $this->bookingService->cancel($id, $request->user()->id, $request->input('reason'));
+
+        return ApiResponse::success(new BookingResource($this->loadBookingDetail($id)));
     }
 
     public function markPaid(Request $request, int $id): JsonResponse
@@ -61,8 +66,15 @@ class AdminBookingController extends Controller
         $this->paymentService->recordCashPayment($id, isset($data['amount']) ? (float) $data['amount'] : null);
 
         return ApiResponse::success(
-            new BookingResource(Booking::with(['studio', 'accessories.accessory'])->findOrFail($id)),
+            new BookingResource($this->loadBookingDetail($id)),
             'Cash payment recorded.',
         );
+    }
+
+    protected function loadBookingDetail(int $id): Booking
+    {
+        return Booking::query()
+            ->with(Booking::adminDetailRelations())
+            ->findOrFail($id);
     }
 }

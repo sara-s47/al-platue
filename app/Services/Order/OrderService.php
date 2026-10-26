@@ -317,7 +317,19 @@ class OrderService
     public function findForAdmin(int $orderId): Order
     {
         return Order::query()
-            ->with(array_merge($this->defaultWith(), ['user', 'creator', 'booking.studio', 'paintColor']))
+            ->with(array_merge($this->defaultWith(), [
+                'user',
+                'creator',
+                'paintColor',
+                'booking.studio',
+                'booking.package',
+                'booking.user',
+                'booking.accessories.accessory',
+                'booking.equipment.equipment',
+                'booking.hospitality.hospitalityItem',
+                'booking.studioItems.studioItem',
+                'booking.pointsTransactions',
+            ]))
             ->findOrFail($orderId);
     }
 

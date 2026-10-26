@@ -134,4 +134,34 @@ class Booking extends Model
     {
         return $this->hasOne(Review::class);
     }
+
+    public function order(): HasOne
+    {
+        return $this->hasOne(Order::class);
+    }
+
+    /**
+     * Relations needed for admin booking detail (requested items + linked order).
+     *
+     * @return list<string>
+     */
+    public static function adminDetailRelations(): array
+    {
+        return [
+            'studio',
+            'user',
+            'package',
+            'pointsTransactions',
+            'accessories.accessory',
+            'equipment.equipment',
+            'hospitality.hospitalityItem',
+            'studioItems.studioItem',
+            'order.paintColor',
+            'order.accessoryItems.accessory',
+            'order.equipmentItems.equipment',
+            'order.portableBathroomItems.portableBathroom',
+            'order.caravanItems.caravan',
+            'order.generatorItems.generator',
+        ];
+    }
 }

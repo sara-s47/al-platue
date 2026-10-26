@@ -140,14 +140,16 @@ class OrderResource extends JsonResource
                 'phone' => $this->user->phone,
             ] : null),
             'created_by_name' => $this->whenLoaded('creator', fn () => $this->creator?->name),
-            'booking' => $this->whenLoaded('booking', fn () => $this->booking ? [
-                'id' => $this->booking->id,
-                'booking_number' => $this->booking->booking_number,
-                'studio_id' => $this->booking->studio_id,
-                'status' => $this->booking->status instanceof \BackedEnum
-                    ? $this->booking->status->value
-                    : $this->booking->status,
-            ] : null),
+            'booking' => $this->whenLoaded('booking', function () {
+                if (! $this->booking) {
+                    return null;
+                }
+
+                // Avoid nesting this order back into the booking payload.
+                $this->booking->unsetRelation('order');
+
+                return (new BookingResource($this->booking))->resolve();
+            }),
             'items' => $items->values(),
             'payments' => PaymentResource::collection($this->whenLoaded('payments')),
         ];
