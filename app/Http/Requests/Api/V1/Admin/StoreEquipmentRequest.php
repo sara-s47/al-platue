@@ -23,6 +23,7 @@ class StoreEquipmentRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'category_id' => 'required|integer|exists:equipment_categories,id',
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'quantity' => 'required|integer|min:1',

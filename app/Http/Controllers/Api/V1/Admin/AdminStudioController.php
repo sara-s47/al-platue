@@ -35,7 +35,11 @@ class AdminStudioController extends Controller
 
     public function show(int $id): JsonResponse
     {
-        return ApiResponse::success(new StudioResource($this->studioService->find($id)->load(['images', 'paintColors'])));
+        return ApiResponse::success(new StudioResource($this->studioService->find($id)->load([
+            'images',
+            'paintColors',
+            'pricingRules' => fn ($q) => $q->where('is_active', true),
+        ])));
     }
 
     public function update(UpdateStudioRequest $request, int $id): JsonResponse

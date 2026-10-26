@@ -27,6 +27,7 @@ class EquipmentResource extends JsonResource
 
         return [
             'id' => $this->id,
+            'category_id' => $this->category_id,
             'name' => $this->name,
             'description' => $this->description,
             'price_per_hour' => $this->price ?? null,
@@ -36,6 +37,7 @@ class EquipmentResource extends JsonResource
             'cover_image' => $cover,
             'image' => $primary,
             'images' => $images,
+            'category' => new EquipmentCategoryResource($this->whenLoaded('category')),
             'available_quantity' => $this->when(
                 array_key_exists('available_quantity', $this->resource->getAttributes()),
                 fn () => (int) $this->available_quantity,

@@ -17,7 +17,7 @@ class EloquentStudioRepository extends BaseRepository implements StudioRepositor
     public function paginate(int $perPage = 15, array $columns = ['*']): \Illuminate\Contracts\Pagination\LengthAwarePaginator
     {
         return $this->model->newQuery()
-            ->with('images')
+            ->with(['images', 'pricingRules' => fn ($q) => $q->where('is_active', true)])
             ->orderBy('sort_order')
             ->orderBy('id')
             ->paginate($perPage, $columns);
@@ -44,7 +44,11 @@ class EloquentStudioRepository extends BaseRepository implements StudioRepositor
     protected function customerQuery(array $filters): Builder
     {
         $query = $this->model->newQuery()
-            ->with(['category', 'images'])
+            ->with([
+                'category',
+                'images',
+                'pricingRules' => fn ($q) => $q->where('is_active', true),
+            ])
             ->where('is_active', true);
 
         if (! empty($filters['category_id'])) {

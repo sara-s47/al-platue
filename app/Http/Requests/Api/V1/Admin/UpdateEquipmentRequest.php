@@ -23,6 +23,7 @@ class UpdateEquipmentRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'category_id' => 'sometimes|integer|exists:equipment_categories,id',
             'name' => 'sometimes|string|max:255',
             'description' => 'nullable|string',
             'quantity' => 'sometimes|integer|min:1',

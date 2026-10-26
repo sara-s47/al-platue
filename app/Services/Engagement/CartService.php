@@ -265,7 +265,11 @@ class CartService
         return match ($item->item_type) {
             CartItem::TYPE_EQUIPMENT => Equipment::query()->with('images')->find($item->item_id),
             CartItem::TYPE_ACCESSORY => Accessory::query()->with('images')->find($item->item_id),
-            CartItem::TYPE_STUDIO => Studio::query()->with(['images', 'paintColors'])->find($item->item_id),
+            CartItem::TYPE_STUDIO => Studio::query()->with([
+                'images',
+                'paintColors',
+                'pricingRules' => fn ($q) => $q->where('is_active', true),
+            ])->find($item->item_id),
             CartItem::TYPE_PORTABLE_BATHROOM => PortableBathroom::query()->with('images')->find($item->item_id),
             CartItem::TYPE_CARAVAN => Caravan::query()->with('images')->find($item->item_id),
             CartItem::TYPE_GENERATOR => Generator::query()->with('images')->find($item->item_id),

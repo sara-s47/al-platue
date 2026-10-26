@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminCancellationPolicyController;
 use App\Http\Controllers\Api\V1\Admin\AdminCatalogSectionCoverController;
 use App\Http\Controllers\Api\V1\Admin\AdminCategoryController;
 use App\Http\Controllers\Api\V1\Admin\AdminContentController;
+use App\Http\Controllers\Api\V1\Admin\AdminEquipmentCategoryController;
 use App\Http\Controllers\Api\V1\Admin\AdminEquipmentController;
 use App\Http\Controllers\Api\V1\Admin\AdminEquipmentRentalController;
 use App\Http\Controllers\Api\V1\Admin\AdminHospitalityController;
@@ -53,6 +54,7 @@ use App\Http\Controllers\Api\V1\Customer\GeneratorController;
 use App\Http\Controllers\Api\V1\Customer\OrderController;
 use App\Http\Controllers\Api\V1\Customer\PortableBathroomController;
 use App\Http\Controllers\Api\V1\Customer\ContentController;
+use App\Http\Controllers\Api\V1\Customer\EquipmentCategoryController;
 use App\Http\Controllers\Api\V1\Customer\EquipmentController;
 use App\Http\Controllers\Api\V1\Customer\EquipmentRentalController;
 use App\Http\Controllers\Api\V1\Customer\FavoriteController;
@@ -142,6 +144,7 @@ Route::prefix('v1')->group(function () {
         Route::get('accessory-rentals/{id}', [AccessoryRentalController::class, 'show'])->whereNumber('id');
         Route::post('accessory-rentals/{id}/cancel', [AccessoryRentalController::class, 'cancel']);
 
+        Route::get('equipment-categories', [EquipmentCategoryController::class, 'index']);
         Route::get('equipment', [EquipmentController::class, 'catalog']);
         Route::get('equipment/availability', [EquipmentController::class, 'availability']);
         Route::get('equipment/{id}', [EquipmentController::class, 'show'])->whereNumber('id');
@@ -261,6 +264,16 @@ Route::prefix('v1')->group(function () {
             Route::post('blocks', [AdminScheduleController::class, 'createBlock']);
             Route::put('blocks/{blockId}', [AdminScheduleController::class, 'updateBlock']);
             Route::delete('blocks/{blockId}', [AdminScheduleController::class, 'deleteBlock']);
+        });
+
+        Route::middleware('permission:equipment.manage')->prefix('equipment-categories')->group(function () {
+            Route::get('/', [AdminEquipmentCategoryController::class, 'index']);
+            Route::post('/', [AdminEquipmentCategoryController::class, 'store']);
+            Route::get('{id}', [AdminEquipmentCategoryController::class, 'show']);
+            Route::put('{id}', [AdminEquipmentCategoryController::class, 'update']);
+            Route::delete('{id}', [AdminEquipmentCategoryController::class, 'destroy']);
+            Route::post('reorder', [AdminEquipmentCategoryController::class, 'reorder']);
+            Route::post('{id}/toggle', [AdminEquipmentCategoryController::class, 'toggle']);
         });
 
         Route::middleware('permission:equipment.manage')->prefix('equipment')->group(function () {

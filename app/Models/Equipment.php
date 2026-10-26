@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\EquipmentStatus;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
@@ -13,6 +14,7 @@ class Equipment extends Model
     protected $table = 'equipment';
 
     protected $fillable = [
+        'category_id',
         'name',
         'description',
         'price',
@@ -32,6 +34,11 @@ class Equipment extends Model
             'status' => EquipmentStatus::class,
             'is_included' => 'boolean',
         ];
+    }
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(EquipmentCategory::class, 'category_id');
     }
 
     public function images(): HasMany

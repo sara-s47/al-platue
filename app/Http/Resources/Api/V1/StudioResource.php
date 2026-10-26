@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Api\V1;
 
+use App\Services\Pricing\PricingService;
 use App\Support\CatalogCover;
 use App\Support\PublicStorageUrl;
 use Illuminate\Http\Request;
@@ -17,6 +18,7 @@ class StudioResource extends JsonResource
             $this->relationLoaded('images') ? $this->images : null,
             sortBySortOrder: true,
         );
+        $rates = app(PricingService::class)->displayRatesForStudio($this->resource);
 
         return [
             'id' => $this->id,
@@ -32,6 +34,8 @@ class StudioResource extends JsonResource
             'sort_order' => $this->sort_order,
             'paint_pricing_mode' => $this->paint_pricing_mode ?? 'flat_extra',
             'flat_extra_paint_price' => $this->flat_extra_paint_price,
+            'price_per_hour' => $rates['price_per_hour'],
+            'price_per_day' => $rates['price_per_day'],
             'cover_image' => $cover,
             'image' => $primary,
             'category' => new CategoryResource($this->whenLoaded('category')),

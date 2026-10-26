@@ -25,14 +25,14 @@ class EquipmentService
     ) {
     }
 
-    public function paginate(int $perPage = 15): LengthAwarePaginator
+    public function paginate(int $perPage = 15, array $filters = []): LengthAwarePaginator
     {
-        return $this->equipmentRepository->paginate($perPage);
+        return $this->equipmentRepository->paginateAdmin($filters, $perPage);
     }
 
     public function findOrFail(int $id): Model
     {
-        return $this->equipmentRepository->findOrFail($id)->load('studios');
+        return $this->equipmentRepository->findOrFail($id)->load(['studios', 'category']);
     }
 
     /**
@@ -241,7 +241,7 @@ class EquipmentService
         $this->studioRepository->findOrFail($studioId);
 
         $items = Equipment::query()
-            ->with('images')
+            ->with(['images', 'category'])
             ->where('status', EquipmentStatus::Active)
             ->where(function ($q) use ($studioId) {
                 $q->whereHas('studios', fn ($s) => $s->where('studios.id', $studioId))

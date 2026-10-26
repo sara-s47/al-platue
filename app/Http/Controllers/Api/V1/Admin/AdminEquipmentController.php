@@ -25,7 +25,9 @@ class AdminEquipmentController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $p = $this->equipmentService->paginate((int) $request->get('per_page', 15));
+        $filters = $request->only(['category_id', 'search']);
+        $p = $this->equipmentService->paginate((int) $request->get('per_page', 15), $filters);
+
         return ApiResponse::paginated($p->through(fn ($e) => new EquipmentResource($e)));
     }
 

@@ -12,6 +12,7 @@ use App\Models\CancellationPolicy;
 use App\Models\Category;
 use App\Models\ContentPage;
 use App\Models\Equipment;
+use App\Models\EquipmentCategory;
 use App\Models\HospitalityCategory;
 use App\Models\HospitalityItem;
 use App\Models\LoyaltyRule;
@@ -31,6 +32,7 @@ class DemoDataSeeder extends Seeder
     public function run(): void
     {
         $categories = $this->seedCategories();
+        $this->seedEquipmentCategories();
         $equipment = $this->seedEquipment();
         $hospitality = $this->seedHospitality();
         $this->seedAccessoryCategories();
@@ -146,6 +148,54 @@ class DemoDataSeeder extends Seeder
 
         if (Schema::hasTable('accessories') && Schema::hasColumn('accessories', 'category_id')) {
             Accessory::query()->whereNull('category_id')->update(['category_id' => $categories['decor']->id]);
+        }
+
+        return $categories;
+    }
+
+    /**
+     * @return array<string, EquipmentCategory>
+     */
+    protected function seedEquipmentCategories(): array
+    {
+        $definitions = [
+            'cameras' => [
+                'name' => 'Cameras',
+                'description' => 'Cameras and recording bodies.',
+                'sort_order' => 1,
+            ],
+            'lighting' => [
+                'name' => 'Lighting',
+                'description' => 'Lights, softboxes, and lighting kits.',
+                'sort_order' => 2,
+            ],
+            'audio' => [
+                'name' => 'Audio',
+                'description' => 'Microphones and audio gear.',
+                'sort_order' => 3,
+            ],
+            'set' => [
+                'name' => 'Set & Staging',
+                'description' => 'Backdrops, teleprompters, and set pieces.',
+                'sort_order' => 4,
+            ],
+        ];
+
+        $categories = [];
+
+        foreach ($definitions as $key => $definition) {
+            $categories[$key] = EquipmentCategory::updateOrCreate(
+                ['name' => $definition['name']],
+                [
+                    'description' => $definition['description'],
+                    'sort_order' => $definition['sort_order'],
+                    'is_active' => true,
+                ],
+            );
+        }
+
+        if (Schema::hasTable('equipment') && Schema::hasColumn('equipment', 'category_id')) {
+            Equipment::query()->whereNull('category_id')->update(['category_id' => $categories['cameras']->id]);
         }
 
         return $categories;

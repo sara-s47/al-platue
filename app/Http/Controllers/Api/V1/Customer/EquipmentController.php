@@ -30,7 +30,7 @@ class EquipmentController extends Controller
     {
         $period = $this->resolveRentalPeriod($request);
         $paginator = $this->equipmentRepository->listForCustomer(
-            $request->only(['search']),
+            $request->only(['search', 'category_id']),
             (int) $request->get('per_page', 15),
         );
 
@@ -44,7 +44,7 @@ class EquipmentController extends Controller
     public function show(Request $request, int $id): JsonResponse
     {
         $equipment = Equipment::query()
-            ->with('images')
+            ->with(['images', 'category'])
             ->where('status', EquipmentStatus::Active)
             ->findOrFail($id);
 

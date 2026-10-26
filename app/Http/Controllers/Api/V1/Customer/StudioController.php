@@ -31,7 +31,12 @@ class StudioController extends Controller
 
     public function show(int $id): JsonResponse
     {
-        $studio = $this->studioService->find($id)->load(['category', 'images', 'paintColors']);
+        $studio = $this->studioService->find($id)->load([
+            'category',
+            'images',
+            'paintColors',
+            'pricingRules' => fn ($q) => $q->where('is_active', true),
+        ]);
 
         return ApiResponse::success(new StudioResource($studio));
     }

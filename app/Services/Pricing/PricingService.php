@@ -6,6 +6,8 @@ use App\Enums\BookingMode;
 use App\Enums\HospitalityPricingModel;
 use App\Enums\PricingRuleType;
 use App\Exceptions\BusinessException;
+use App\Models\PricingRule;
+use App\Models\Studio;
 use App\Repositories\Contracts\EquipmentRepositoryInterface;
 use App\Repositories\Contracts\HospitalityItemRepositoryInterface;
 use App\Repositories\Contracts\PackageRepositoryInterface;
@@ -333,14 +335,56 @@ class PricingService
     /**
      * Resolve the winning hourly and daily pricing rule for a calendar day (admin day show).
      *
-     * @return array{hourly: array<string, mixed>|null, daily: array<string, mixed>|null}
+     * @return array{
+     *   hourly: array<string, mixed>|null,
+     *   daily: array<string, mixed>|null,
+     *   price_per_hour: float|null,
+     *   price_per_day: float|null,
+     *   winning_hourly_rule_type: mixed,
+     *   winning_daily_rule_type: mixed
+     * }
      */
     public function resolvePricingForDate(int $studioId, string $date): array
     {
-        $rules = $this->getActiveRules($studioId);
         $timezone = $this->appSettings->getBookingConfig()['timezone'];
         $moment = Carbon::parse($date.' 12:00:00', $timezone);
 
+        return $this->resolveRatesFromRules($this->getActiveRules($studioId), $moment);
+    }
+
+    /**
+     * Display rates for studio cards: today's effective winners (now in app timezone).
+     *
+     * @return array{price_per_hour: string|null, price_per_day: string|null}
+     */
+    public function displayRatesForStudio(Studio $studio): array
+    {
+        $timezone = $this->appSettings->getBookingConfig()['timezone'];
+        $moment = Carbon::now($timezone);
+        $resolved = $this->resolveRatesFromRules($this->rulesForStudio($studio), $moment);
+
+        return [
+            'price_per_hour' => $resolved['price_per_hour'] !== null
+                ? number_format((float) $resolved['price_per_hour'], 2, '.', '')
+                : null,
+            'price_per_day' => $resolved['price_per_day'] !== null
+                ? number_format((float) $resolved['price_per_day'], 2, '.', '')
+                : null,
+        ];
+    }
+
+    /**
+     * @return array{
+     *   hourly: array<string, mixed>|null,
+     *   daily: array<string, mixed>|null,
+     *   price_per_hour: float|null,
+     *   price_per_day: float|null,
+     *   winning_hourly_rule_type: mixed,
+     *   winning_daily_rule_type: mixed
+     * }
+     */
+    public function resolveRatesFromRules(Collection $rules, Carbon $moment): array
+    {
         $hourly = null;
         $daily = null;
 
@@ -378,6 +422,37 @@ class PricingService
             'winning_hourly_rule_type' => $hourly['rule_type'] ?? null,
             'winning_daily_rule_type' => $daily['rule_type'] ?? null,
         ];
+    }
+
+    /**
+     * Prefer eager-loaded pricingRules; map to plain objects for resolveBestRule (string rule_type).
+     */
+    protected function rulesForStudio(Studio $studio): Collection
+    {
+        if ($studio->relationLoaded('pricingRules')) {
+            return $studio->pricingRules
+                ->filter(fn (PricingRule $rule) => (bool) $rule->is_active)
+                ->map(fn (PricingRule $rule) => (object) [
+                    'id' => $rule->id,
+                    'studio_id' => $rule->studio_id,
+                    'rule_type' => $rule->rule_type instanceof PricingRuleType
+                        ? $rule->rule_type->value
+                        : (string) $rule->rule_type,
+                    'day_of_week' => $rule->day_of_week,
+                    'start_time' => $rule->start_time,
+                    'end_time' => $rule->end_time,
+                    'specific_date' => $rule->specific_date instanceof \Carbon\CarbonInterface
+                        ? $rule->specific_date->toDateString()
+                        : $rule->specific_date,
+                    'price_per_hour' => $rule->price_per_hour,
+                    'price_per_day' => $rule->price_per_day,
+                    'priority' => $rule->priority,
+                    'is_active' => $rule->is_active,
+                ])
+                ->values();
+        }
+
+        return $this->getActiveRules($studio->id);
     }
 
     /**

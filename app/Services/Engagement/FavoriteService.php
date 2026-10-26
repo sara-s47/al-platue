@@ -24,7 +24,7 @@ class FavoriteService
         $query = Favorite::query()
             ->with(['favoritable' => function ($morphTo) {
                 $morphTo->morphWith([
-                    Studio::class => ['images', 'category'],
+                    Studio::class => ['images', 'category', 'pricingRules'],
                     Equipment::class => ['images'],
                     Accessory::class => ['images'],
                 ]);
@@ -61,7 +61,7 @@ class FavoriteService
 
         return $favorite->load(['favoritable' => function ($morphTo) {
             $morphTo->morphWith([
-                Studio::class => ['images', 'category'],
+                Studio::class => ['images', 'category', 'pricingRules'],
                 Equipment::class => ['images'],
                 Accessory::class => ['images'],
             ]);
