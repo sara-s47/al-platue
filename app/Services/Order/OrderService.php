@@ -310,25 +310,16 @@ class OrderService
     {
         return Order::query()
             ->where('user_id', $userId)
-            ->with($this->defaultWith())
+            ->with($this->detailWith())
             ->findOrFail($orderId);
     }
 
     public function findForAdmin(int $orderId): Order
     {
         return Order::query()
-            ->with(array_merge($this->defaultWith(), [
+            ->with(array_merge($this->detailWith(), [
                 'user',
                 'creator',
-                'paintColor',
-                'booking.studio',
-                'booking.package',
-                'booking.user',
-                'booking.accessories.accessory',
-                'booking.equipment.equipment',
-                'booking.hospitality.hospitalityItem',
-                'booking.studioItems.studioItem',
-                'booking.pointsTransactions',
             ]))
             ->findOrFail($orderId);
     }
@@ -846,6 +837,26 @@ class OrderService
             'booking',
             'paintColor',
         ];
+    }
+
+    /**
+     * Order detail with line items + nested booking requested items.
+     *
+     * @return list<string>
+     */
+    protected function detailWith(): array
+    {
+        return array_merge($this->defaultWith(), [
+            'paintColor',
+            'booking.studio',
+            'booking.package',
+            'booking.user',
+            'booking.accessories.accessory',
+            'booking.equipment.equipment',
+            'booking.hospitality.hospitalityItem',
+            'booking.studioItems.studioItem',
+            'booking.pointsTransactions',
+        ]);
     }
 
     protected function generateOrderNumber(): string

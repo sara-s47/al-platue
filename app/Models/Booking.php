@@ -141,11 +141,11 @@ class Booking extends Model
     }
 
     /**
-     * Relations needed for admin booking detail (requested items + linked order).
+     * Relations for booking detail (requested items + linked order).
      *
      * @return list<string>
      */
-    public static function adminDetailRelations(): array
+    public static function detailRelations(): array
     {
         return [
             'studio',

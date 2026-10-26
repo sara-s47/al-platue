@@ -74,7 +74,7 @@ class AdminBookingController extends Controller
     protected function loadBookingDetail(int $id): Booking
     {
         return Booking::query()
-            ->with(Booking::adminDetailRelations())
+            ->with(Booking::detailRelations())
             ->findOrFail($id);
     }
 }
