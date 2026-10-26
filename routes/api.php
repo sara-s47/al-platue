@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminAuditController;
 use App\Http\Controllers\Api\V1\Admin\AdminBookingController;
 use App\Http\Controllers\Api\V1\Admin\AdminCampaignController;
 use App\Http\Controllers\Api\V1\Admin\AdminCancellationPolicyController;
+use App\Http\Controllers\Api\V1\Admin\AdminCatalogSectionCoverController;
 use App\Http\Controllers\Api\V1\Admin\AdminCategoryController;
 use App\Http\Controllers\Api\V1\Admin\AdminContentController;
 use App\Http\Controllers\Api\V1\Admin\AdminEquipmentController;
@@ -46,6 +47,7 @@ use App\Http\Controllers\Api\V1\Customer\BookingController;
 use App\Http\Controllers\Api\V1\Customer\BookingHoldController;
 use App\Http\Controllers\Api\V1\Customer\CaravanController;
 use App\Http\Controllers\Api\V1\Customer\CartController;
+use App\Http\Controllers\Api\V1\Customer\CatalogSectionCoverController;
 use App\Http\Controllers\Api\V1\Customer\CategoryController;
 use App\Http\Controllers\Api\V1\Customer\GeneratorController;
 use App\Http\Controllers\Api\V1\Customer\OrderController;
@@ -196,6 +198,7 @@ Route::prefix('v1')->group(function () {
         Route::get('content/banners', [ContentController::class, 'banners']);
         Route::get('content/pages/{slug}', [ContentController::class, 'page']);
         Route::get('content/settings', [ContentController::class, 'settings']);
+        Route::get('catalog-section-covers', [CatalogSectionCoverController::class, 'index']);
     });
 
     Route::prefix('admin')->middleware(['auth:sanctum', 'active'])->group(function () {
@@ -471,6 +474,12 @@ Route::prefix('v1')->group(function () {
             Route::post('pages', [AdminContentController::class, 'storePage']);
             Route::put('pages/{id}', [AdminContentController::class, 'updatePage']);
             Route::delete('pages/{id}', [AdminContentController::class, 'destroyPage']);
+        });
+
+        Route::middleware('permission:content.manage')->prefix('catalog-section-covers')->group(function () {
+            Route::get('/', [AdminCatalogSectionCoverController::class, 'index']);
+            Route::post('/', [AdminCatalogSectionCoverController::class, 'update']);
+            Route::put('/', [AdminCatalogSectionCoverController::class, 'update']);
         });
 
         Route::middleware('permission:reports.view')->prefix('reports')->group(function () {
